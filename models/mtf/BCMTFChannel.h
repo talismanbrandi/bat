@@ -12,7 +12,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -21,9 +21,12 @@
 
 // ---------------------------------------------------------
 
+#include "../../BAT/BCAux.h"
+
+#include <TH1D.h>
+
 #include <string>
 #include <vector>
-#include <TH1D.h>
 
 class BCMTFTemplate;
 class BCMTFSystematicVariation;
@@ -35,221 +38,237 @@ class BCMTFChannel
 
 public:
 
-        /** \name Constructors and destructors */
-        /** @{ */
+    /** \name Constructors and destructors */
+    /** @{ */
 
-        /**
-         * The default constructor.
-         * @param name The name of the channel. */
-        BCMTFChannel(const char * name);
+    /**
+     * The default constructor.
+     * @param name The name of the channel. */
+    BCMTFChannel(const std::string& name);
 
-        /**
-         * The default destructor. */
-        ~BCMTFChannel();
+    /**
+     * The default destructor. */
+    ~BCMTFChannel();
 
-        /** @} */
-        /** \name Member functions (get) */
-        /** @{ */
+    /** @} */
+    /** \name Member functions (get) */
+    /** @{ */
 
-        /**
-         * @return The name of the channel. */
-        std::string GetName()
-        { return fName; };
+    /**
+     * @return The name of the channel. */
+    const std::string& GetName()
+    { return fName; };
 
-        /**
-         * @return The data. */
-        BCMTFTemplate * GetData()
-        { return fData; };
+    /**
+     * @return The name of the channel. */
+    const std::string& GetSafeName()
+    { return fSafeName; };
 
-        /**
-         * Return a template
-         * @param index The template index.
-         * @return The template. */
-        BCMTFTemplate * GetTemplate(int index)
-        { return fTemplateContainer.at(index); };
+    /**
+     * @return The data. */
+    BCMTFTemplate* GetData()
+    { return fData; };
 
-        /**
-         * Return a systematic variation
-         * @param index The systematic index.
-         * @return The systematic variation. */
-        BCMTFSystematicVariation * GetSystematicVariation(int index)
-        { return fSystematicVariationContainer.at(index); };
+    /**
+     * Return a template
+     * @param index The template index.
+     * @return The template. */
+    BCMTFTemplate* GetTemplate(int index)
+    { return fTemplateContainer.at(index); };
 
-        /**
-         * @return Flag defining if the channel is active or not. */
-        bool GetFlagChannelActive()
-        { return fFlagChannelActive; };
+    /**
+     * Return a systematic variation
+     * @param index The systematic index.
+     * @return The systematic variation. */
+    BCMTFSystematicVariation* GetSystematicVariation(int index)
+    { return fSystematicVariationContainer.at(index); };
 
-        /**
-         * Return a histogram ued for the calculation of the error band
-         * of the expectation.
-         * @return The histogram. */
-        TH2D* GetHistUncertaintyBandExpectation()
-        { return fHistUncertaintyBandExpectation; };
+    /**
+     * @return Flag defining if the channel is active or not. */
+    bool GetFlagChannelActive()
+    { return fFlagChannelActive; };
 
-        /**
-         * Return a histogram used for the calculation of the Poisson fluctuations.
-         * @return The histogram. */
-        TH2D* GetHistUncertaintyBandPoisson()
-        { return fHistUncertaintyBandPoisson; };
+    /**
+     * Return a histogram ued for the calculation of the error band
+     * of the expectation.
+     * @return The histogram. */
+    TH2D* GetHistUncertaintyBandExpectation()
+    { return fHistUncertaintyBandExpectation; };
 
-        /**
-         * @return The minimal y-range for printing. */
-        double GetRangeYMin()
-        { return fRangeYMin; };
+    /**
+     * Return a histogram used for the calculation of the Poisson fluctuations.
+     * @return The histogram. */
+    TH2D* GetHistUncertaintyBandPoisson()
+    { return fHistUncertaintyBandPoisson; };
 
-        /**
-         * @return The maximal y-range for printing. */
-        double GetRangeYMax()
-        { return fRangeYMax; };
+    /**
+     * @return The minimal y-range for printing. */
+    double GetRangeYMin()
+    { return fRangeYMin; };
 
-        /** @} */
-        /** \name Member functions (set) */
-        /** @{ */
+    /**
+     * @return The maximal y-range for printing. */
+    double GetRangeYMax()
+    { return fRangeYMax; };
 
-        /**
-         * Set the name of the channel.
-         * @param name The name of the channel. */
-        void SetName(const char * name)
-        { fName = name; };
+    /** @} */
+    /** \name Member functions (set) */
+    /** @{ */
 
-        /**
-         * Set the data set.
-         * @param bctemplate The data set. */
-        void SetData(BCMTFTemplate * bctemplate)
-        { fData = bctemplate; };
+    /**
+     * Set the name of the channel.
+     * @param name The name of the channel. */
+    void SetName(const std::string& name)
+    { fName = name; fSafeName = BCAux::SafeName(fName); };
 
-        /**
-         * Set a histogram ued for the calculation of the error band of
-         * the expectation.
-         * @param hist The histogram. */
-        void SetHistUncertaintyBandExpectation(TH2D* hist) {
-                fHistUncertaintyBandExpectation = hist; }
+    /**
+     * Set the data set.
+     * @param bctemplate The data set. */
+    void SetData(BCMTFTemplate* bctemplate)
+    { fData = bctemplate; };
 
-        /**
-         * Set a histogram used for the calculation of the Poisson fluctuations.
-         * @param The histogram. */
-        void SetHistUncertaintyBandPoisson(TH2D* hist) {
-                fHistUncertaintyBandPoisson = hist; }
+    /**
+     * Set a histogram ued for the calculation of the error band of
+     * the expectation.
+     * @param hist The histogram. */
+    void SetHistUncertaintyBandExpectation(TH2D* hist)
+    {
+        fHistUncertaintyBandExpectation = hist;
+    }
 
-        /**
-         * Set flag to define if the channel is active or not.
-         * @param flag The flag. */
-        void SetFlagChannelActive(bool flag)
-        { fFlagChannelActive = flag; };
+    /**
+     * Set a histogram used for the calculation of the Poisson fluctuations.
+     * @param The histogram. */
+    void SetHistUncertaintyBandPoisson(TH2D* hist)
+    {
+        fHistUncertaintyBandPoisson = hist;
+    }
 
-        /**
-         * Set the y-ranges for printing.
-         * @param min The minimum range.
-         * @param max The maximum range. */
-        void SetRangeY(double min, double max) {
-                fRangeYMin = min; fRangeYMax = max; };
+    /**
+     * Set flag to define if the channel is active or not.
+     * @param flag The flag. */
+    void SetFlagChannelActive(bool flag)
+    { fFlagChannelActive = flag; };
 
-        /** @} */
+    /**
+     * Set the y-ranges for printing.
+     * @param min The minimum range.
+     * @param max The maximum range. */
+    void SetRangeY(double min, double max)
+    {
+        fRangeYMin = min;
+        fRangeYMax = max;
+    };
 
-        /** \name Member functions (miscellaneous methods) */
-        /** @{ */
+    /** @} */
 
-        /**
-         * Add a template.
-         * @param bctemplate The template. */
-        void AddTemplate(BCMTFTemplate * bctemplate)
-        { fTemplateContainer.push_back(bctemplate); };
+    /** \name Member functions (miscellaneous methods) */
+    /** @{ */
 
-        /**
-         * Add a systematic variation.
-         * @param variation The variation. */
-        void AddSystematicVariation(BCMTFSystematicVariation * variation)
-        { fSystematicVariationContainer.push_back(variation); };
+    /**
+     * Add a template.
+     * @param bctemplate The template. */
+    void AddTemplate(BCMTFTemplate* bctemplate)
+    { fTemplateContainer.push_back(bctemplate); };
 
-        /**
-         * Calculate histogram for uncertainty band calculation. */
-        void CalculateHistUncertaintyBandPoisson();
+    /**
+     * Add a systematic variation.
+     * @param variation The variation. */
+    void AddSystematicVariation(BCMTFSystematicVariation* variation)
+    { fSystematicVariationContainer.push_back(variation); };
 
-        /**
-         * Calculate histogram for uncertainty band calculation and
-         * return a TH1D.
-         * @param minimum The minimum value on the expectation.
-         * @param maximum The maximum value on the expectation.
-         * @param color The color scheme.
-         * @return A TH1D histogram. */
-        TH1D* CalculateUncertaintyBandPoisson(double minimum, double maximumm, int color);
+    /**
+     * Calculate histogram for uncertainty band calculation. */
+    void CalculateHistUncertaintyBandPoisson();
 
-        /** @} */
+    /**
+     * Calculate histogram for uncertainty band calculation and
+     * return a TH1D.
+     * @param minimum The minimum value on the expectation.
+     * @param maximum The maximum value on the expectation.
+     * @param color The color scheme.
+     * @return A TH1D histogram. */
+    TH1D* CalculateUncertaintyBandPoisson(double minimum, double maximumm, int color);
 
-        /** \name Member functions (output methods) */
-        /** @{ */
+    /** @} */
 
-        /**
-         * Print the templates in this channel.
-         * @param filename The name of the file. */
-        void PrintTemplates(std::string filename);
+    /** \name Member functions (output methods) */
+    /** @{ */
 
-        /**
-         * Print a particular template with systematics.
-         * @param index The template index.
-         * @param filename The name of the file. */
-        void PrintTemplate(int index, const char * filename);
+    /**
+     * Print the templates in this channel.
+     * @param filename The name of the file. */
+    void PrintTemplates(const std::string& filename);
 
-        /**
-         * Print histogram for uncertainty band calculation.
-         * @param filename The name of the file. */
-        void PrintHistUncertaintyBandExpectation(const char* filename);
+    /**
+     * Print a particular template with systematics.
+     * @param index The template index.
+     * @param filename The name of the file. */
+    void PrintTemplate(int index, const std::string& filename);
 
-        /**
-         * Print histogram for uncertainty band calculation.
-         * @param filename The name of the file. */
-        void PrintHistUncertaintyBandPoisson(const char* filename, const char* options="COLZ");
+    /**
+     * Print histogram for uncertainty band calculation.
+     * @param filename The name of the file. */
+    void PrintHistUncertaintyBandExpectation(const std::string& filename);
 
-        /**
-         * Print cumulative histogram for uncertainty band calculation.
-         * @param filename The name of the file. */
-        void PrintHistCumulativeUncertaintyBandPoisson(const char* filename);
+    /**
+     * Print histogram for uncertainty band calculation.
+     * @param filename The name of the file. */
+    void PrintHistUncertaintyBandPoisson(const std::string& filename, const std::string& options = "COLZ");
 
-        /**
-         * Print uncertainty band.
-         * @param filename The name of the file. */
-        void PrintUncertaintyBandPoisson(const char* filename, double minimum, double maximum, int color);
+    /**
+     * Print cumulative histogram for uncertainty band calculation.
+     * @param filename The name of the file. */
+    void PrintHistCumulativeUncertaintyBandPoisson(const std::string& filename);
 
-        /** @} */
+    /**
+     * Print uncertainty band.
+     * @param filename The name of the file. */
+    void PrintUncertaintyBandPoisson(const std::string& filename, double minimum, double maximum, int color);
+
+    /** @} */
 
 private:
 
-        /**
-         * The name of the channel. */
-        std::string fName;
+    /**
+     * The name of the channel. */
+    std::string fName;
 
-        /**
-         * The data set. */
-        BCMTFTemplate * fData;
+    /**
+     * The safename of the channel. */
+    std::string fSafeName;
 
-        /**
-         * The minimal y-range for printing. */
-        double fRangeYMin;
+    /**
+     * The data set. */
+    BCMTFTemplate* fData;
 
-        /**
-         * The maximal y-range for printing. */
-        double fRangeYMax;
+    /**
+     * The minimal y-range for printing. */
+    double fRangeYMin;
 
-        /**
-         * A container of templates. */
-        std::vector<BCMTFTemplate *> fTemplateContainer;
+    /**
+     * The maximal y-range for printing. */
+    double fRangeYMax;
 
-        /**
-         * A container of systematics. */
-        std::vector<BCMTFSystematicVariation *> fSystematicVariationContainer;
+    /**
+     * A container of templates. */
+    std::vector<BCMTFTemplate*> fTemplateContainer;
 
-        /**
-         * Flag defining if the channel is active or not. */
-        bool fFlagChannelActive;
+    /**
+     * A container of systematics. */
+    std::vector<BCMTFSystematicVariation*> fSystematicVariationContainer;
 
-        /**
-         * A histogram for the calculation of uncertainty bands. */
-        TH2D* fHistUncertaintyBandExpectation;
+    /**
+     * Flag defining if the channel is active or not. */
+    bool fFlagChannelActive;
 
-        /**
-         * A histogram for the calculation of uncertainty bands. */
-        TH2D* fHistUncertaintyBandPoisson;
+    /**
+     * A histogram for the calculation of uncertainty bands. */
+    TH2D* fHistUncertaintyBandExpectation;
+
+    /**
+     * A histogram for the calculation of uncertainty bands. */
+    TH2D* fHistUncertaintyBandPoisson;
 
 };
 // ---------------------------------------------------------

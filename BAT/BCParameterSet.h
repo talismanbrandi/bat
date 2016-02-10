@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -21,77 +21,99 @@
 #include <vector>
 #include <string>
 
-class BCParameter;
+#include "BCParameter.h"
+#include "BCVariableSet.h"
 
 // ---------------------------------------------------------
 
-class BCParameterSet
+class BCParameterSet : public BCVariableSet<BCParameter>
 {
 public:
-   /**
-    * Add a parameter if no parameter of same name exists yet.
-    *
-    * @param par Parameter
-    * @return True if successful.
-    */
-   bool Add(BCParameter * par);
 
-   void Clear(bool);
+    /**
+     * Constructor */
+    BCParameterSet();
 
-   /**
-    * Raw and fast access.
-    *
-    * @param index Index
-    * @return Parameter
-    */
-   BCParameter * operator[](unsigned index) const
-   {
-      return fPars[index];
-   }
+    /**
+     * Destructor */
+    virtual ~BCParameterSet() {};
 
-   /**
-    * Safe access, but slightly less efficient access to parameter.
-    *
-    * @param index Index gets checked.
-    * @return The pointer at index position or NULL if invalid index.
-    */
-   BCParameter * Get(unsigned index) const
-   {
-      return ValidIndex(index, "Get") ? fPars[index] : NULL;
-   }
+    /**
+     * @return The number of fixed parameters. */
+    virtual unsigned int GetNFixedParameters() const;
 
-   /**
-    * Safe access, but slightly less efficient access to parameter.
-    *
-    * @param name Look up name in list
-    * @return The pointer at index position or NULL if invalid index.
-    */
-   BCParameter * Get(const std::string & name) const
-   {
-      return Get(Index(name));
-   }
+    /**
+     * @return The number of free parameters. */
+    virtual unsigned int GetNFreeParameters() const
+    { return Size() - GetNFixedParameters(); }
 
-   /**
-    * Find index of parameter identified by name
-    */
-   unsigned Index(const std::string & name) const;
+    /**
+     * @return volume of the set. */
+    virtual double Volume() const ;
 
-   /**
-    * Number of parameters contained
-    */
-   unsigned Size() const
-   {    return fPars.size(); }
+    /**
+     * Check whether all parameters have factorized priors set.
+     * @param ignore_fixed Whether to ignore fixed parameters.
+     * @return Whether all parameters have factorized priors set. */
+    virtual bool ArePriorsSet(bool ignore_fixed = true) const;
 
-   /**
-    * Check if indes is in range
-    * @param index Index
-    * @param caller Optional string to identify caller for debug output
-    * @return
-    */
-   bool ValidIndex(unsigned index, const std::string caller="CheckIndex") const;
+    /**
+     * Check if vector of values is within limits. Check if fixed parameters are at fixed values.
+     * @param x Values to check
+     * @return Whether values are within limits of variables. */
+    virtual bool IsWithinLimits(const std::vector<double>& x) const;
 
-private:
-   /// Don't own parameters
-   std::vector<BCParameter*> fPars;
+    /**
+     * Check if fixed parameters in vector of values are at fixed values
+     * @param x Values to check.
+     * @return Whether values are at fixed values. */
+    virtual bool IsAtFixedValues(const std::vector<double>& x) const;
+
+    /**
+     * Translate from unit interval to values in variable ranges, fixing fixed parameters along the way.
+     * @param p vector of positions in the unit interval (0 = lower limit, 1 = upper limit). */
+    virtual void ValueFromPositionInRange(std::vector<double>& p) const;
+
+    /**
+     * Get range centers, leaving fixed parameters at fixed values
+     * @return vector of range centers & fixed values. */
+    virtual std::vector<double> GetRangeCenters() const;
+
+    /**
+     * Get vector of values uniformly distributed in parameter ranges (or at fixed values, if fixed)
+     * @return vector of uniformly distributed random values. */
+    virtual std::vector<double> GetUniformRandomValues(TRandom* const R) const;
+
+    /**
+     * Get vector values distributed randomly by the parameter priors.
+     * Parameters with unset priors will have infinite values.
+     * Fixed parameters will be at fixed values.
+     * One should first call BCParameterSet::ArePriorsSet to be safe.
+     * @param R Random number generator to use.
+     * @return vector of random values distributed according to priors. */
+    virtual std::vector<double> GetRandomValuesAccordingToPriors(TRandom* const R) const;
+
+    /**
+     * Set all priors to constant. */
+    virtual void SetPriorConstantAll();
+
+    /**
+     * Get log of prior;
+     * assumes independent priors given for all parameters in set.
+     * @param parameters vector of parameters to return prior at.
+     * @return log of prior at parameter set value. */
+    virtual double GetLogPrior(const std::vector<double>& parameters) const;
+
+    /**
+     * Get vector of fixed values.
+     * @param include_unfixed Flag for whether to return fixed values (true) or infinity (false) for unfixed parameters.
+     * @return vector of fixed values for all parameters. */
+    virtual std::vector<double> GetFixedValues(bool include_unfixed = true) const;
+
+    /**
+     * Change values to fixed values for fixed parameters.
+     * @param x Vector of parameter values to adjust. */
+    virtual bool ApplyFixedValues(std::vector<double>& x) const;
+
 };
 #endif

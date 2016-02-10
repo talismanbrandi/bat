@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -15,553 +15,292 @@
 
 #include <TString.h>
 
-#include <fstream>
-#include <iostream>
-
 // ---------------------------------------------------------
-
 BCModelManager::BCModelManager()
+    : fDataSet(NULL)
 {
-   fModelContainer = new BCModelContainer();
-   fDataSet = 0;
 }
 
 // ---------------------------------------------------------
+BCModelManager::BCModelManager(const BCModelManager& other)
+    : fModels(other.fModels),
+      fAPrioriProbability(other.fAPrioriProbability),
+      fAPosterioriProbability(other.fAPosterioriProbability),
+      fDataSet(other.fDataSet)
+{
+}
 
+// ---------------------------------------------------------
 BCModelManager::~BCModelManager()
 {
-   delete fModelContainer;
-   delete fDataSet;
 }
 
 // ---------------------------------------------------------
-
-BCModelManager::BCModelManager(const BCModelManager & modelmanager)
+BCModelManager& BCModelManager::operator=(BCModelManager rhs)
 {
-   modelmanager.Copy(*this);
+    swap(*this, rhs);
+    return *this;
 }
 
 // ---------------------------------------------------------
-
-BCModelManager & BCModelManager::operator = (const BCModelManager & modelmanager)
+void swap(BCModelManager& A, BCModelManager& B)
 {
-   if (this != &modelmanager)
-      modelmanager.Copy(* this);
-
-   return * this;
+    std::swap(A.fModels,                 B.fModels);
+    std::swap(A.fAPrioriProbability,     B.fAPrioriProbability);
+    std::swap(A.fAPosterioriProbability, B.fAPosterioriProbability);
+    std::swap(A.fDataSet,                B.fDataSet);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::SetDataSet(BCDataSet * dataset)
+void BCModelManager::SetDataSet(BCDataSet* dataset)
 {
-   // set data set
-   fDataSet = dataset;
+    // set data set
+    fDataSet = dataset;
 
-   // set data set of all models in the manager
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetDataSet(fDataSet);
+    // set data set of all models in the manager
+    for (unsigned int i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetDataSet(fDataSet);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::SetSingleDataPoint(BCDataPoint * datapoint)
+void BCModelManager::AddModel(BCModel* model, double probability)
 {
-   // create new data set consisting of a single data point
-   BCDataSet * dataset = new BCDataSet();
+    // set data set
+    if (fDataSet)
+        model->SetDataSet(fDataSet);
 
-   // add the data point
-   dataset->AddDataPoint(datapoint);
-
-   // set this new data set
-   SetDataSet(dataset);
+    // fill model into container
+    fModels.push_back(model);
+    // set probabilities
+    fAPrioriProbability.push_back(probability);
+    fAPosterioriProbability.push_back(-1);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::SetSingleDataPoint(BCDataSet * dataset, unsigned int index)
+void BCModelManager::SetPrecision(BCEngineMCMC::Precision precision)
 {
-   if (index > dataset->GetNDataPoints())
-      return;
-
-   SetSingleDataPoint(dataset->GetDataPoint(index));
-}
-
-// ---------------------------------------------------------
-
-void BCModelManager::AddModel(BCModel * model, double probability)
-{
-   // set a priori probability of new model
-   model->SetModelAPrioriProbability(probability);
-
-   // set data set
-   model->SetDataSet(fDataSet);
-
-   // fill model into container
-   fModelContainer->push_back(model);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetPrecision(precision);
 }
 
 // ---------------------------------------------------------
 void BCModelManager::SetNIterationsMax(int niterations)
 {
-	for (unsigned int i = 0; i < GetNModels(); i++)
-		GetModel(i)->SetNIterationsMax(niterations);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetNIterationsMax(niterations);
 }
 
 // ---------------------------------------------------------
 void BCModelManager::SetNIterationsMin(int niterations)
 {
-	for (unsigned int i = 0; i < GetNModels(); i++)
-		GetModel(i)->SetNIterationsMin(niterations);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetNIterationsMin(niterations);
 }
 
 // ---------------------------------------------------------
 void BCModelManager::SetNIterationsPrecisionCheck(int niterations)
 {
-	for (unsigned int i = 0; i < GetNModels(); i++)
-		GetModel(i)->SetNIterationsPrecisionCheck(niterations);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetNIterationsPrecisionCheck(niterations);
 }
 
 // ---------------------------------------------------------
-void BCModelManager::SetNIterationsOutput(int niterations)
-{
-	for (unsigned int i = 0; i < GetNModels(); i++)
-		GetModel(i)->SetNIterationsOutput(niterations);
-}
-
-// ---------------------------------------------------------
-
 void BCModelManager::SetIntegrationMethod(BCIntegrate::BCIntegrationMethod method)
 {
-   // set integration method for all models registered
-
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetIntegrationMethod(method);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetIntegrationMethod(method);
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::SetMarginalizationMethod(BCIntegrate::BCMarginalizationMethod method)
 {
-   // set marginalization method for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetMarginalizationMethod(method);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetMarginalizationMethod(method);
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::SetOptimizationMethod(BCIntegrate::BCOptimizationMethod method)
 {
-   // set mode finding method for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetOptimizationMethod(method);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetOptimizationMethod(method);
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::SetRelativePrecision(double relprecision)
 {
-   // set relative precision for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetRelativePrecision(relprecision);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetRelativePrecision(relprecision);
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::SetAbsolutePrecision(double absprecision)
 {
-   // set absolute precision for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetAbsolutePrecision(absprecision);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetAbsolutePrecision(absprecision);
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::SetNbins(unsigned int n)
 {
-   // set number of bins for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetNbins(n);
-}
-
-// ---------------------------------------------------------
-
-void BCModelManager::SetDataPointLowerBoundaries(BCDataPoint * datasetlowerboundaries)
-{
-   // set lower boundary point for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetDataPointLowerBoundaries(datasetlowerboundaries);
-}
-
-// ---------------------------------------------------------
-
-void BCModelManager::SetDataPointUpperBoundaries(BCDataPoint * datasetupperboundaries)
-{
-   // set upper boundary point for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetDataPointUpperBoundaries(datasetupperboundaries);
-}
-
-// ---------------------------------------------------------
-
-void BCModelManager::SetDataPointLowerBoundary(int index, double lowerboundary)
-{
-   // set lower bounday values for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetDataPointLowerBoundary(index, lowerboundary);
-}
-
-// ---------------------------------------------------------
-
-void BCModelManager::SetDataPointUpperBoundary(int index, double upperboundary)
-{
-   // set upper boundary values for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetDataPointUpperBoundary(index, upperboundary);
-}
-
-// ---------------------------------------------------------
-
-void BCModelManager::SetDataBoundaries(int index, double lowerboundary, double upperboundary)
-{
-   // set lower and upper boundary values for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->SetDataBoundaries(index, lowerboundary, upperboundary);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetNbins(n);
 }
 
 // ---------------------------------------------------------
 void BCModelManager::SetNChains(unsigned int n)
 {
-   // set number of Markov chains for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->MCMCSetNChains(n);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->SetNChains(n);
 }
 
 // ---------------------------------------------------------
-
-int BCModelManager::ReadDataFromFileTree(const char * filename, const char * treename, const char * branchnames)
-{
-   if (fModelContainer->size() == 0) {
-      BCLog::OutError("BCModelManager::ReadDataFromFileTree : No model defined.");
-      return -1;
-   }
-
-   // create data set
-   if (!fDataSet)
-      fDataSet = new BCDataSet();
-   else
-      fDataSet->Reset();
-
-   // read data from tree
-   int read_file = fDataSet->ReadDataFromFileTree(filename, treename, branchnames);
-
-   if (read_file >=0) {
-      SetDataSet(fDataSet);
-
-      for (unsigned int i = 0; i < GetNModels(); i++)
-         fModelContainer->at(i)->SetDataSet(fDataSet);
-   }
-   else if (read_file == -1) {
-      delete fDataSet;
-      return -1;
-   }
-
-   return 0;
-}
-
-// ---------------------------------------------------------
-
-int BCModelManager::ReadDataFromFileTxt(const char * filename, int nbranches)
-{
-   if (fModelContainer->size() == 0) {
-      BCLog::OutError("BCModelManager::ReadDataFromFileTree. No model defined.");
-      return -1;
-   }
-
-   // create data set
-   if (!fDataSet)
-      fDataSet = new BCDataSet();
-   else
-      fDataSet->Reset();
-
-   // read data from txt file
-   int read_file = fDataSet->ReadDataFromFileTxt(filename, nbranches);
-
-   if (read_file >=0) {
-      SetDataSet(fDataSet);
-
-      for (unsigned int i = 0; i < GetNModels(); i++)
-         fModelContainer->at(i)->SetDataSet(fDataSet);
-   }
-   else {
-      delete fDataSet;
-      return -1;
-   }
-
-   return 0;
-}
-
-// ---------------------------------------------------------
-
 void BCModelManager::Integrate()
 {
-   // initialize likelihood norm
-   double normalization = 0.0;
+    // initialize likelihood norm
+    double normalization = 0.0;
 
-   BCLog::OutSummary("Running normalization of all models.");
+    BCLog::OutSummary("Running normalization of all models.");
 
-   for (unsigned int i = 0; i < GetNModels(); i++) {
-      fModelContainer->at(i)->Integrate();
+    for (unsigned int i = 0; i < GetNModels(); ++i) {
+        fModels[i]->Integrate();
 
-      // add to total normalization
-      normalization += (fModelContainer->at(i)->GetIntegral() * fModelContainer->at(i)->GetModelAPrioriProbability());
-   }
+        // add to total normalization
+        normalization += fModels[i]->GetIntegral() * fAPrioriProbability[i];
+    }
 
-   // set model a posteriori probabilities
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      fModelContainer->at(i)->SetModelAPosterioriProbability(
-            (fModelContainer->at(i)->GetIntegral() * fModelContainer->at(i)->GetModelAPrioriProbability()) /
-            normalization);
+    // set model a posteriori probabilities
+    for (unsigned int i = 0; i < GetNModels(); ++i)
+        fAPosterioriProbability[i] = (fModels[i]->GetIntegral() * fAPrioriProbability[i]) / normalization;
 }
 
 // ---------------------------------------------------------
-
-double BCModelManager::BayesFactor(const unsigned int imodel1, const unsigned int imodel2)
+double BCModelManager::BayesFactor(unsigned imodel1, unsigned imodel2) const
 {
-   // Bayes Factors are the likelihoods integrated over the parameters
-   // Is this equal to the posteriors?
-   //    NOOOO
-   // But it is equal to normalization factors.
+    if (imodel1 >= fModels.size() or imodel2 >= fModels.size())
+        return -1;
 
-   const double norm1 = fModelContainer->at(imodel1)->GetIntegral();
-   const double norm2 = fModelContainer->at(imodel2)->GetIntegral();
+    // Bayes Factors are the likelihoods integrated over the parameters
+    // Is this equal to the posteriors?
+    //    NOOOO
+    // But it is equal to normalization factors.
 
-   // check model 1
-   if(norm1<0.) {
-      BCLog::OutError(
-         Form("BCModelManager::BayesFactor : Model %s (index %d) not normalized. Cannot calculate Bayes factor.",
-              fModelContainer->at(imodel1)->GetName().data(),imodel1));
-      return -1.;
-   }
+    // check model 1
+    const double norm1 = fModels[imodel1]->GetIntegral();
+    if (norm1 < 0.) {
+        BCLOG_ERROR(Form(" Model %s (index %d) not normalized. Cannot calculate Bayes factor.", fModels[imodel1]->GetName().data(), imodel1));
+        return -1.;
+    }
 
-   // check model 2
-   if(norm2<0.) {
-      BCLog::OutError(
-         Form("BCModelManager::BayesFactor : Model %s (index %d) not normalized. Cannot calculate Bayes factor.",
-              fModelContainer->at(imodel2)->GetName().data(),imodel2));
-      return -1.;
-   }
+    // check model 2
+    const double norm2 = fModels[imodel2]->GetIntegral();
+    if (norm2 < 0) {
+        BCLOG_ERROR(Form(" Model %s (index %d) not normalized. Cannot calculate Bayes factor.", fModels[imodel2]->GetName().data(), imodel2));
+        return -1.;
+    }
 
-   // denominator cannot be zero
-   if(norm2==0. && norm1!=0.) {// not good since norm2 is double !!!
-      BCLog::OutError(
-         Form("BCModelManager::BayesFactor : Model %s (index %d) has ZERO probability. Bayes factor is infinite.",
-              fModelContainer->at(imodel2)->GetName().data(),imodel2));
-      return -1.;
-   }
+    // denominator cannot be zero
+    if (norm2 < std::numeric_limits<double>::min() && norm1 >= std::numeric_limits<double>::min()) {
+        BCLOG_ERROR(Form(" Model %s (index %d) has ZERO probability. Bayes factor is infinite.", fModels[imodel2]->GetName().data(), imodel2));
+        return -1.;
+    }
 
-   // denominator cannot be zero unless also numerator is zero
-   if(norm2==0. && norm1==0.) {// not good since norm2 and norm1 are both double !!!
-      BCLog::OutWarning(
-         Form("BCModelManager::BayesFactor : Models %s and %s have ZERO probability. Bayes factor is unknown. Returning 1.",
-              fModelContainer->at(imodel2)->GetName().data(),fModelContainer->at(imodel1)->GetName().data()));
-      return 1.;
-   }
+    // denominator cannot be zero unless also numerator is zero
+    if (norm2 < std::numeric_limits<double>::min() && norm1 < std::numeric_limits<double>::min()) {
+        BCLOG_WARNING(Form("Models %s and %s have ZERO probability. Bayes factor is unknown. Returning 1.", fModels[imodel2]->GetName().data(), fModels[imodel1]->GetName().data()));
+        return 1.;
+    }
 
-   // now calculate the factor
-   return norm1/norm2;
+    // now calculate the factor
+    return norm1 / norm2;
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::FindMode()
 {
-   // finds mode for all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->FindMode();
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->FindMode();
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::MarginalizeAll()
 {
-   // marginalizes all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->MarginalizeAll();
+    // marginalizes all models registered
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->MarginalizeAll();
 }
 
 // ---------------------------------------------------------
-
 void BCModelManager::WriteMarkovChain(bool flag)
 {
-   // marginalizes all models registered
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->WriteMarkovChain(flag);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->WriteMarkovChain(flag);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::CalculatePValue(bool flag_histogram)
+void BCModelManager::WriteMarkovChainRun(bool flag)
 {
-   // calculate p-value for all models
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->CalculatePValue(GetModel(i)->GetBestFitParameters(), flag_histogram);
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->WriteMarkovChainRun(flag);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::PrintSummary(const char * file)
+void BCModelManager::WriteMarkovChainPreRun(bool flag)
 {
-  std::ofstream out;
-  std::streambuf * old_buffer = 0;
-
-   if(file) {
-      out.open(file);
-      if (!out.is_open()) {
-         std::cerr<<"Couldn't open file "<<file<<std::endl;
-         return;
-      }
-      old_buffer = std::cout.rdbuf(out.rdbuf());
-   }
-
-   // model summary
-   int nmodels = fModelContainer->size();
-   std::cout<<std::endl
-            <<"======================================"<<std::endl
-            <<" Summary"<<std::endl
-            <<"======================================"<<std::endl
-            <<std::endl
-            <<" Number of models               : "<<nmodels<<std::endl
-            <<std::endl
-            <<" - Models:"<<std::endl;
-
-   for (int i = 0; i < nmodels; i++)
-      fModelContainer->at(i)->PrintSummary();
-
-   // data summary
-   std::cout<<" - Data:"<<std::endl
-            <<std::endl
-            <<"     Number of entries: "<<fDataSet->GetNDataPoints()<<std::endl
-            <<std::endl;
-
-   std::cout<<"======================================"<<std::endl
-            <<" Model comparison"<<std::endl
-            <<std::endl;
-
-   // probability summary
-   std::cout<<" - A priori probabilities:"<<std::endl<<std::endl;
-
-   for (int i=0; i<nmodels; i++)
-      std::cout<<"     p("<< fModelContainer->at(i)->GetName()
-               <<") = "<< fModelContainer->at(i)->GetModelAPrioriProbability()
-               <<std::endl;
-   std::cout<<std::endl;
-
-   std::cout<<" - A posteriori probabilities:"<<std::endl<<std::endl;
-
-   for (int i = 0; i < nmodels; i++)
-      std::cout<<"     p("<< fModelContainer->at(i)->GetName()
-               <<" | data) = "<< fModelContainer->at(i)->GetModelAPosterioriProbability()
-               <<std::endl;
-   std::cout<<std::endl;
-
-   std::cout<<"======================================"<<std::endl<<std::endl;
-
-   if (file)
-      std::cout.rdbuf(old_buffer);
-
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->WriteMarkovChainPreRun(flag);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::PrintModelComparisonSummary(const char * file)
+void BCModelManager::WriteMarkovChain(const std::string& prefix, const std::string& option, bool flag_run, bool flag_prerun)
 {
-   std::ofstream out;
-   std::streambuf * old_buffer = 0;
-
-   if(file) {
-      out.open(file);
-      if (!out.is_open()) {
-         std::cerr<<"Couldn't open file "<<file<<std::endl;
-         return;
-      }
-      old_buffer = std::cout.rdbuf(out.rdbuf());
-   }
-
-   // model summary
-   int nmodels = fModelContainer->size();
-   std::cout<<std::endl
-            <<"==========================================="<<std::endl
-            <<" Model Comparison Summary"<<std::endl
-            <<"==========================================="<<std::endl
-            <<std::endl
-            <<" Number of models               : "<<nmodels<<std::endl
-            <<std::endl;
-
-   // probability summary
-   std::cout<<" - A priori probabilities:"<<std::endl<<std::endl;
-
-   for (int i=0; i<nmodels; i++)
-      std::cout<<"     p("<< fModelContainer->at(i)->GetName()
-               <<") = "<< fModelContainer->at(i)->GetModelAPrioriProbability()
-               <<std::endl;
-   std::cout<<std::endl;
-
-   std::cout<<" - A posteriori probabilities:"<<std::endl<<std::endl;
-
-   for (int i = 0; i < nmodels; i++)
-      std::cout<<"     p("<< fModelContainer->at(i)->GetName()
-               <<" | data) = "<< fModelContainer->at(i)->GetModelAPosterioriProbability()
-               <<std::endl;
-   std::cout<<std::endl;
-
-   // Bayes factors summary
-   std::cout<<" - Bayes factors:"<<std::endl<<std::endl;
-   for (int i = 0; i < nmodels-1; i++)
-      for (int j = i+1; j < nmodels; j++)
-         std::cout<<"     K = p(data | "<<fModelContainer->at(i)->GetName()<<") / "
-                  <<"p(data | "<<fModelContainer->at(j)->GetName()<<") = "
-                  <<BayesFactor(i,j)<<std::endl;
-   std::cout<<std::endl;
-
-   // p-values summary
-   std::cout
-      <<" - p-values:"<<std::endl
-      <<std::endl;
-
-   for (int i = 0; i < nmodels; i++)
-   {
-      double p = fModelContainer->at(i)->GetPValue();
-      std::cout <<"     "<< fModelContainer->at(i)->GetName();
-      if(p>=0.)
-         std::cout<<":  p-value = "<< p;
-      else
-         std::cout<<":  p-value not calculated";
-      std::cout<<std::endl;
-   }
-   std::cout<<std::endl;
-
-   std::cout<<"==========================================="<<std::endl<<std::endl;
-
-   if (file)
-      std::cout.rdbuf(old_buffer);
-
+    for (unsigned i = 0; i < GetNModels(); ++i)
+        GetModel(i)->WriteMarkovChain(prefix + GetModel(i)->GetSafeName() + ".root", option, flag_run, flag_prerun);
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::PrintResults()
+void BCModelManager::PrintSummary() const
 {
-   // print summary of all models
-   for (unsigned int i = 0; i < GetNModels(); i++)
-      GetModel(i)->PrintResults(Form("%s.txt", GetModel(i)->GetName().data()));
+    BCLog::OutSummary("");
+    BCLog::OutSummary("======================================");
+    BCLog::OutSummary(" Summary");
+    BCLog::OutSummary("======================================");
+    BCLog::OutSummary("");
+    BCLog::OutSummary(Form(" Number of models               %lu: ", fModels.size()));
+    BCLog::OutSummary("");
+
+    BCLog::OutSummary(" - Models:");
+    BCLog::OutSummary("");
+    for (unsigned i = 0; i < fModels.size(); ++i)
+        fModels[i]->PrintSummary();
+
+    BCLog::OutSummary(" - Data:");
+    BCLog::OutSummary("");
+    BCLog::OutSummary(Form("     Number of entries: %u", fDataSet->GetNDataPoints()));
+    BCLog::OutSummary("");
+
+    PrintModelComparisonSummary();
 }
 
 // ---------------------------------------------------------
-
-void BCModelManager::Copy(BCModelManager & modelmanager) const
+void BCModelManager::PrintModelComparisonSummary() const
 {
-   // don't copy the content only the pointers
-   modelmanager.fModelContainer = fModelContainer;
-   modelmanager.fDataSet        = fDataSet;
+    BCLog::OutSummary("======================================");
+    BCLog::OutSummary(" Model comparison:");
+    BCLog::OutSummary("");
+
+    BCLog::OutSummary(" - A priori probabilities:");
+    for (unsigned i = 0; i < fModels.size(); ++i)
+        BCLog::OutSummary(Form(" (%u) p(%s) = %f", i, fModels[i]->GetName().data(), fAPrioriProbability[i]));
+
+    BCLog::OutSummary(" - A posteriori probabilities:");
+    for (unsigned i = 0; i < fModels.size(); ++i)
+        BCLog::OutSummary(Form(" (%u) p(%s | data) = %f", i, fModels[i]->GetName().data(), fAPosterioriProbability[i]));
+
+    // Bayes factors summary
+    BCLog::OutSummary(" - Bayes factors:");
+    for (unsigned i = 0; i < fModels.size(); ++i)
+        for (unsigned j = i + 1; j < fModels.size(); ++j)
+            BCLog::OutSummary(Form("     K := p(data | %s) / p(data | %s) = %f", fModels[i]->GetName().data(), fModels[j]->GetName().data(),
+                                   BayesFactor(i, j)));
+    BCLog::OutSummary("===========================================");
 }

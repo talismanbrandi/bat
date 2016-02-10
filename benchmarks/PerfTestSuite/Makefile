@@ -1,8 +1,8 @@
 # Programs
 CXX          = g++
-CXXFLAGS     = -g -Wall -fPIC -Wno-deprecated -O2
+CXXFLAGS     = -g -O0 -Wall -Wextra -pedantic -Werror -fPIC
 LD           = g++
-LDFLAGS      = -g -O2
+LDFLAGS      = -g -O0
 SOFLAGS      = -shared
 
 AR           = ar
@@ -41,9 +41,9 @@ CXXOBJS      = $(patsubst %.cxx,obj/%.o,$(CXSRCS))
 
 DICTOBJS     = $(patsubst %.cxx,obj/%Dict.o,$(CXSRCS))
 
-EXEOBJS      =
+EXEOBJS      = runTestSuite
 
-GARBAGE      = $(CXXOBJS) $(EXEOBJS)  src/*Dict.*  obj/*.o  $(LIBA) $(LIBSO) link.d runTestSuite.exe
+GARBAGE      = $(CXXOBJS) $(EXEOBJS)  src/*Dict.*  obj/*.o  $(LIBA) $(LIBSO) link.d runTestSuite
 
 RESULTS      = *.png *.pdf *.log *.tst *.html *.php *.htm
 

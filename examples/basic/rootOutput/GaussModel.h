@@ -3,20 +3,19 @@
 
 #include <BAT/BCModel.h>
 
-// ---------------------------------------------------------
+#include <string>
+
 class GaussModel : public BCModel
 {
-   public:
+public:
 
-      // Constructors and destructor
-      GaussModel();
-      GaussModel(const char * name);
-      ~GaussModel();
+    GaussModel(const std::string& name);
 
-      // Methods to overload, see file GaussModel.cxx
-      void DefineParameters();
-      double LogAPrioriProbability(const std::vector<double> &parameters);
-      double LogLikelihood(const std::vector<double> &parameters);
+    ~GaussModel()
+    { /* empty destructor */ }
+
+    // Method to overload, see file GaussModel.cxx
+    double LogLikelihood(const std::vector<double>& parameters);
 };
 // ---------------------------------------------------------
 

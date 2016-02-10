@@ -1,28 +1,37 @@
 // ***************************************************************
-// This file was created using the |:PROGRAM:| script.
-// |:PROGRAM:| is part of Bayesian Analysis Toolkit (BAT).
+// This file was created using the ((PROGRAM)) script.
+// ((PROGRAM)) is part of Bayesian Analysis Toolkit (BAT).
 // BAT can be downloaded from http://mpp.mpg.de/bat
 // ***************************************************************
 
-#ifndef __BAT__|:UP_MODEL:|__H
-#define __BAT__|:UP_MODEL:|__H
+#ifndef __BAT__((UPMODEL))__H
+#define __BAT__((UPMODEL))__H
 
 #include <BAT/BCModel.h>
 
-// This is a |:Model:| header file.
-// Model source code is located in file |:Project:|/|:Model:|.cxx
+#include <string>
+#include <vector>
+
+// This is a ((MODEL)) header file.
+// Model source code is located in file ((PROJECT))/((MODEL)).cxx
 
 // ---------------------------------------------------------
-class |:Model:| : public BCModel {
- public:
+class ((MODEL)) : public BCModel
+{
 
-	// Constructor and destructor
-	|:Model:|(const char * name = "|:Model:|");
-	~|:Model:|();
+public:
 
-	// Methods to overload, see file |:Model:|.cxx
-	double LogLikelihood(const std::vector<double> & parameters);
-	// double LogAPrioriProbability(const std::vector<double> & parameters);
+    // Constructor
+    ((MODEL))(const std::string& name);
+
+    // Destructor
+    ~((MODEL))();
+
+    // Overload LogLikelihood to implement model
+    double LogLikelihood(const std::vector<double>& parameters);
+
+    // Overload LogAprioriProbability if not using built-in 1D priors
+    // double LogAPrioriProbability(const std::vector<double> & parameters);
 
 };
 // ---------------------------------------------------------

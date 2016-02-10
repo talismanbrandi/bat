@@ -1,73 +1,50 @@
 #include "CombinationModel.h"
 
-#include <TMath.h>
+#include <BAT/BCGaussianPrior.h>
 #include <BAT/BCMath.h>
+#include <BAT/BCPositiveDefinitePrior.h>
 
 // ---------------------------------------------------------
-CombinationModel::CombinationModel() : BCModel()
+CombinationModel::CombinationModel(const std::string& name,
+                                   double new_mass_mean, double new_mass_sigma,
+                                   double new_xs_mean, double new_xs_sigma,
+                                   double rho,
+                                   double old_mass_mean, double old_mass_sigma,
+                                   double old_xs_mean, double old_xs_sigma)
+    : BCModel(name),
+      fMassMean(new_mass_mean),
+      fMassSigma(new_mass_sigma),
+      fXSMean(new_xs_mean),
+      fXSSigma(new_xs_sigma),
+      fRho(rho)
 {
-  DefineParameters();
+    // add parameter for mass, with range large enough to reach out to
+    // 4 sigma in either direction from the old and new means
+    // LaTeX name "Mass" and units "MeV"
+    AddParameter("mass",
+                 std::min<double>(fMassMean - 4 * fMassSigma, old_mass_mean - 4 * old_mass_sigma),
+                 std::max<double>(fMassMean + 4 * fMassSigma, old_mass_mean + 4 * old_mass_sigma),
+                 "Mass", "[MeV]");
+
+    // add parameter for cross section, with range large enough to
+    // reach out to 4 sigma in either direction from the old and new means
+    // LaTeX name "#sigma" and units "ab"
+    AddParameter("xs",
+                 std::min<double>(fXSMean - 4 * fXSSigma, old_xs_mean - 4 * old_xs_sigma),
+                 std::max<double>(fXSMean + 4 * fXSSigma, old_xs_mean + 4 * old_xs_sigma),
+                 "#sigma", "[ab]");
+
+    // set priors
+    GetParameter("mass").SetPrior(new BCPositiveDefinitePrior(new BCGaussianPrior(old_mass_mean, old_mass_sigma)));
+    GetParameter("xs").SetPrior(new BCPositiveDefinitePrior(new BCGaussianPrior(old_xs_mean, old_xs_sigma)));
 };
 
 // ---------------------------------------------------------
-CombinationModel::CombinationModel(const char * name) : BCModel(name)
+double CombinationModel::LogLikelihood(const std::vector<double>& pars)
 {
-  DefineParameters();
-};
-
-// ---------------------------------------------------------
-CombinationModel::~CombinationModel()
-{
-};
-
-// ---------------------------------------------------------
-void CombinationModel::DefineParameters()
-{
-  AddParameter("mass", 15., 65.); // mass of a particle
-  AddParameter("cross section", 120., 180.); // cross section for a certain reaction
+    // bivariate gaussian with correlation fRho
+    return BCMath::LogGaus(pars[0], fMassMean, fMassMean * sqrt(1 - fRho * fRho))
+           + BCMath::LogGaus(pars[1], fXSMean, fXSSigma * sqrt(1 - fRho * fRho))
+           + fRho / (1 - fRho * fRho) * (pars[0] - fMassMean) / fMassMean * (pars[1] - fXSMean) / fXSSigma
+           - 0.5 * log(1 - fRho * fRho);
 }
-
-// ---------------------------------------------------------
-double CombinationModel::LogLikelihood(const std::vector<double> &parameters)
-{
-  double logprob = 0.;
-
-  double m = parameters.at(0);
-  double c = parameters.at(1);
-
-  double mu_m  = 35.7;
-  double sig_m = 3.1;
-
-  double mu_c  = 152.3;
-  double sig_c =   5.4;
-
-  double rho = 0.7;
-
-  double pre = 1./2./TMath::Pi()/sig_m/sig_c/sqrt(1-rho*rho);
-  double exp1 = -1./2/(1-rho*rho);
-  double exp2 = (m-mu_m)*(m-mu_m)/sig_m/sig_m
-    + (c-mu_c)*(c-mu_c)/sig_c/sig_c
-    - 2*rho*(m-mu_m)*(c-mu_c)/sig_m/sig_c;
-
-  double gaus = pre*exp(exp1*exp2);
-
-  logprob += log(gaus);
-
-  return logprob;
-}
-
-// ---------------------------------------------------------
-double CombinationModel::LogAPrioriProbability(const std::vector<double> &parameters)
-{
-  double logprob = 0.;
-
-  double mass = parameters.at(0);
-  double crosssection = parameters.at(1);
-
-  logprob += BCMath::LogGaus(mass, 39.4, 5.4); // Gaussian prior for the mass
-  logprob += BCMath::LogGaus(crosssection, 150.3, 5.5); // Gaussian prior for the mass
-
-  return logprob;
-}
-// ---------------------------------------------------------
-

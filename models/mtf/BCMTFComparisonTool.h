@@ -12,7 +12,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -20,10 +20,12 @@
  */
 
 // ---------------------------------------------------------
-#include <string>
-#include <vector>
+#include "../../BAT/BCAux.h"
 
 #include <TH1D.h>
+
+#include <string>
+#include <vector>
 
 // ---------------------------------------------------------
 class BCMTFComparisonTool
@@ -31,91 +33,111 @@ class BCMTFComparisonTool
 
 public:
 
-        /** \name Constructors and destructors */
-        /** @{ */
+    /** \name Constructors and destructors */
+    /** @{ */
 
-        /**
-         * The default constructor.
-         * @param name The name of the class. */
-        BCMTFComparisonTool(const char * name);
+    /**
+     * The default constructor.
+     * @param name The name of the class. */
+    BCMTFComparisonTool(const std::string& name);
 
-        /**
-         * The defaul destructor. */
-        ~BCMTFComparisonTool();
+    /**
+     * The defaul destructor. */
+    ~BCMTFComparisonTool();
 
-        /** @} */
-        /** \name Member functions (get) */
-        /** @{ */
+    /** @} */
+    /** \name Member functions (get) */
+    /** @{ */
 
-        /**
-         * @return The name of the class. */
-        std::string GetName()
-        { return fName; };
+    /**
+     * @return The name of the class. */
+    const std::string& GetName()
+    { return fName; };
 
-        /**
-         * @return The number of contributions. */
-        int GetNContributions()
-        { return (int) fHistogramContainer.size(); };
+    /**
+     * @return The name of the class. */
+    const std::string& GetSafeName()
+    { return fSafeName; };
 
-        /** @} */
-        /** \name Member functions (miscellaneous methods) */
-        /** @{ */
+    /**
+     * @return The number of contributions. */
+    int GetNContributions()
+    { return (int) fHistogramContainer.size(); };
 
-        /**
-         * Add a constribution.
-         * @param name The name of the contribution.
-         * @param hist The histogram. */
-        void AddContribution(const char * name, TH1D hist);
+    /** @} */
+    /** \name Setters */
+    /** @{ */
 
-        /**
-         * Add a constribution.
-         * @param name The name of the contribution.
-         * @param centralvalue The central value.
-         * @param uncertainty The uncertainty. */
-        void AddContribution(const char * name, double centralvalue, double uncertainty);
+    /** Set name */
+    void SetName(const std::string& name)
+    { fName = name; fSafeName = BCAux::SafeName(name); }
 
-        /**
-         * Draw an overview. */
-        void DrawOverview();
+    /** @} */
+    /** \name Member functions (miscellaneous methods) */
+    /** @{ */
 
-        /** @} */
-        /** \name Member functions (output methods) */
-        /** @{ */
+    /**
+     * Add a constribution.
+     * @param name The name of the contribution.
+     * @param hist The histogram. */
+    void AddContribution(const std::string& name, TH1D hist);
 
-        /**
-         * Print all histograms to a file.
-         * @param filename The name of the file. */
-        void PrintHistograms(const char * filename);
+    /**
+     * Add a constribution.
+     * @param name The name of the contribution.
+     * @param centralvalue The central value.
+     * @param uncertainty The uncertainty. */
+    void AddContribution(const std::string& name, double centralvalue, double uncertainty);
 
-        /**
-         * Print an overview to a file.
-         * @param filename The name of the file. */
-        void PrintOverview(const char * filename);
+    /**
+     * Draw an overview. */
+    void DrawOverview();
 
-        /** @} */
+    /** @} */
+    /** \name Member functions (output methods) */
+    /** @{ */
+
+    /**
+     * Print all histograms to a file.
+     * @param filename The name of the file. */
+    void PrintHistograms(const std::string& filename);
+
+    /**
+     * Print an overview to a file.
+     * @param filename The name of the file. */
+    void PrintOverview(const std::string& filename);
+
+    /** @} */
 
 private:
 
-        /**
-         * The name of the class. */
-        std::string fName;
+    /**
+     * The name of the class. */
+    std::string fName;
 
-        /**
-         * The names of the contributions. */
-        std::vector<std::string> fNameContainer;
+    /**
+     * The safe name of the class. */
+    std::string fSafeName;
 
-        /**
-         * A container of TH1D histograms. */
-        std::vector<TH1D *> fHistogramContainer;
+    /**
+     * The names of the contributions. */
+    std::vector<std::string> fNameContainer;
 
-        /**
-         * A container of central values. */
-        std::vector<double> fCentralValueContainer;
+    /**
+     * A container of TH1D histograms. */
+    std::vector<TH1D*> fHistogramContainer;
 
-        /**
-         * A container of uncertainties. */
-        std::vector<double> fUncertaintyContainer;
+    /**
+     * A container of central values. */
+    std::vector<double> fCentralValueContainer;
 
+    /**
+     * A container of uncertainties. */
+    std::vector<double> fUncertaintyContainer;
+
+    /**
+     * Keep plot objects alive */
+    mutable BCAux::BCTrash<TObject> fTrash;
 };
 // ---------------------------------------------------------
 

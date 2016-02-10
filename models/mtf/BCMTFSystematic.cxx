@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -11,10 +11,10 @@
 #include "BCMTFSystematic.h"
 
 // ---------------------------------------------------------
-BCMTFSystematic::BCMTFSystematic(const char * name)
-   : fFlagSystematicActive(true)
+BCMTFSystematic::BCMTFSystematic(const std::string& name)
+    : fFlagSystematicActive(true)
 {
-   fSystematicName = name;
+    SetName(name);
 }
 
 // ---------------------------------------------------------

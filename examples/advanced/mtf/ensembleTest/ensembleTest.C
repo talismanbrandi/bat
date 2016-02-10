@@ -32,7 +32,9 @@
 #if defined(__MAKECINT__) || defined(__ROOTCLING__) || COMPILER
 
 #include <BAT/BCAux.h>
+#include <BAT/BCGaussianPrior.h>
 #include <BAT/BCLog.h>
+#include <BAT/BCParameter.h>
 #include <BAT/BCMTF.h>
 #include <BAT/BCMTFChannel.h>
 #include <BAT/BCMTFAnalysisFacility.h>
@@ -47,128 +49,130 @@
 
 void ensembleTest()
 {
-   // ---- set style and open log files ---- //
+    // ---- set style and open log files ---- //
 
-   // open log file
-   BCLog::OpenLog("log.txt");
-   BCLog::SetLogLevel(BCLog::detail);
+    // open log file
+    BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
 
-   // set nicer style for drawing than the ROOT default
-   BCAux::SetStyle();
+    // set nicer style for drawing than the ROOT default
+    BCAux::SetStyle();
 
-   // ---- read histograms from a file ---- //
+    // ---- read histograms from a file ---- //
 
-   // open file
-   std::string fname = "templates.root";
-   TFile * file = TFile::Open(fname.c_str(), "READ");
+    // open file
+    std::string fname = "templates.root";
+    TFile* file = TFile::Open(fname.data(), "READ");
 
-   // check if file is open
-   if (!file->IsOpen()) {
-      BCLog::OutError(Form("Could not open file %s.",fname.c_str()));
-      BCLog::OutError("Run macro CreateHistograms.C in Root to create the file.");
-      return;
-   }
+    // check if file is open
+    if (!file || !file->IsOpen()) {
+        BCLog::OutError(Form("Could not open file %s.", fname.c_str()));
+        BCLog::OutError("Run macro CreateHistograms.C in Root to create the file.");
+        return;
+    }
 
-   // read histograms
-   TH1D hist_bkg1  = *(TH1D *)file->Get("hist_bkg1");   // background template for channel 1
-   TH1D hist_bkg2  = *(TH1D *)file->Get("hist_bkg2");   // background template for channel 2
-   TH1D hist_sgn1  = *(TH1D *)file->Get("hist_sgn1");   // signal template for channel 1
-   TH1D hist_sgn2  = *(TH1D *)file->Get("hist_sgn2");   // signal template for channel 2
-   TH1D hist_data1 = *(TH1D *)file->Get("hist_data1"); // data for channel 1
-   TH1D hist_data2 = *(TH1D *)file->Get("hist_data2"); // data for channel 2
+    // read histograms
+    TH1D* hist_bkg1  = (TH1D*)file->Get("hist_bkg1");    // background template for channel 1
+    TH1D* hist_bkg2  = (TH1D*)file->Get("hist_bkg2");    // background template for channel 2
+    TH1D* hist_sgn1  = (TH1D*)file->Get("hist_sgn1");    // signal template for channel 1
+    TH1D* hist_sgn2  = (TH1D*)file->Get("hist_sgn2");    // signal template for channel 2
+    TH1D* hist_data1 = (TH1D*)file->Get("hist_data1");  // data for channel 1
+    TH1D* hist_data2 = (TH1D*)file->Get("hist_data2");  // data for channel 2
 
-   // ---- perform fitting ---- //
+    if (!hist_bkg1 || !hist_bkg2 || !hist_sgn1 || !hist_sgn2 || !hist_data1 || !hist_data2) {
+        BCLog::OutError("Could not find data histograms");
+        return;
+    }
 
-   // create new fitter object
-   BCMTF * m = new BCMTF("MyModel");
+    // ---- perform fitting ---- //
 
-   // set Metropolis as marginalization method
-   m->SetMarginalizationMethod(BCIntegrate::kMargMetropolis);
+    // create new fitter object
+    BCMTF* m = new BCMTF("MyModel");
 
-   // set the required precision of the MCMC (kLow, kMedium, kHigh)
-   // the higher the precision the longer the MCMC run
-   m->MCMCSetPrecision(BCEngineMCMC::kMedium);
+    // set Metropolis as marginalization method
+    m->SetMarginalizationMethod(BCIntegrate::kMargMetropolis);
 
-   // add channels
-   m->AddChannel("channel1");
-   m->AddChannel("channel2");
+    // set the required precision of the MCMC (kLow, kQuick, kMedium, kHigh)
+    // the higher the precision the longer the MCMC run
+    m->SetPrecision(BCEngineMCMC::kQuick);
 
-   // add processes
-   m->AddProcess("background_channel1", 700., 900.);
-   m->AddProcess("background_channel2", 300., 700.);
-   m->AddProcess("signal",       0., 400.);
+    // add channels
+    m->AddChannel("channel1");
+    m->AddChannel("channel2");
 
-   // set data
-   m->SetData("channel1", hist_data1);
-   m->SetData("channel2", hist_data2);
+    // add processes
+    m->AddProcess("background_channel1", 700., 900.);
+    m->AddProcess("background_channel2", 300., 700.);
+    m->AddProcess("signal",                0., 400.);
 
-   // set template and histograms
-   // note: the process "background_channel2" is ignored in channel 1
-   m->SetTemplate("channel1", "signal", hist_sgn1, 0.5);
-   m->SetTemplate("channel1", "background_channel1", hist_bkg1, 1.0);
-//   m->SetTemplate("channel1", "background_channel2", hist_bkg1, 0.0);
+    // set data
+    m->SetData("channel1", *hist_data1);
+    m->SetData("channel2", *hist_data2);
 
-   // note: the process "background_channel1" is ignored in channel 2
-   m->SetTemplate("channel2", "signal", hist_sgn2, 1.0);
-   m->SetTemplate("channel2", "background_channel2", hist_bkg2, 1.0);
-//   m->SetTemplate("channel2", "background_channel1", hist_bkg2, 0.0);
+    // set template and histograms
+    // note: the process "background_channel2" is ignored in channel 1
+    m->SetTemplate("channel1", "signal", *hist_sgn1, 0.5);
+    m->SetTemplate("channel1", "background_channel1", *hist_bkg1, 1.0);
+    // m->SetTemplate("channel1", "background_channel2", *hist_bkg1, 0.0);
 
-   // set priors
-   m->SetPriorGauss("background_channel1", 800., 10.);
-   m->SetPriorGauss("background_channel2", 500., 50.);
-   m->SetPriorConstant("signal");
+    // note: the process "background_channel1" is ignored in channel 2
+    m->SetTemplate("channel2", "signal", *hist_sgn2, 1.0);
+    m->SetTemplate("channel2", "background_channel2", *hist_bkg2, 1.0);
+    // m->SetTemplate("channel2", "background_channel1", *hist_bkg2, 0.0);
 
-   // run MCMC
-   m->MarginalizeAll();
+    // set priors
+    m->GetParameter("background_channel1").SetPrior(new BCGaussianPrior(800, 10));
+    m->GetParameter("background_channel2").SetPrior(new BCGaussianPrior(500, 50));
+    m->GetParameter("signal").SetPriorConstant();
 
-   // find global mode
-   m->FindMode( m->GetBestFitParameters() );
+    // run MCMC
+    m->MarginalizeAll();
 
-   // print all marginalized distributions
-   m->PrintAllMarginalized("marginalized.pdf");
+    // find global mode
+    m->FindMode( m->GetBestFitParameters() );
 
-   // print results of the analysis into a text file
-   m->PrintResults("results.txt");
+    // print all marginalized distributions
+    m->PrintAllMarginalized("marginalized.pdf");
 
-   // print templates and stacks
-   for (int i = 0; i < m->GetNChannels(); ++i) {
-      BCMTFChannel * channel = m->GetChannel(i);
-      channel->PrintTemplates(Form("%s_templates.pdf", channel->GetName().c_str()));
-      m->PrintStack(i, m->GetBestFitParameters(), Form("%s_stack.pdf", channel->GetName().c_str()));
-   }
+    // print results of the analysis into a text file
+    m->PrintSummary();
 
-   // ---- perform ensemble tests ---- //
+    // print templates and stacks
+    for (int i = 0; i < m->GetNChannels(); ++i) {
+        BCMTFChannel* channel = m->GetChannel(i);
+        channel->PrintTemplates(channel->GetName() + "_templates.pdf");
+        m->PrintStack(i, m->GetBestFitParameters(), channel->GetName() + "_stack.pdf");
+    }
 
-   // create new analysis facility
-   BCMTFAnalysisFacility * facility = new BCMTFAnalysisFacility(m);
+    // ---- perform ensemble tests ---- //
 
-   // settings
-   facility->SetFlagMarginalize(false);
-//   facility->SetFlagMarginalize(true);
+    // create new analysis facility
+    BCMTFAnalysisFacility* facility = new BCMTFAnalysisFacility(m);
 
-   // open new file
-   file = TFile::Open("ensembles.root", "RECREATE");
-   file->cd();
+    // settings
+    facility->SetFlagMarginalize(false);
 
-   // create ensembles
-   TTree * tree = facility->BuildEnsembles( m->GetBestFitParameters(), 2000 );
+    // open new file
+    file = TFile::Open("ensembles.root", "RECREATE");
+    file->cd();
 
-   // run ensemble test
-   TTree * tree_out = facility->PerformEnsembleTest(tree, 2000);
+    // create ensembles
+    TTree* tree = facility->BuildEnsembles( m->GetBestFitParameters(), 2000 );
 
-   // write trees into file
-   tree->Write();
-   tree_out->Write();
+    // run ensemble test
+    TTree* tree_out = facility->PerformEnsembleTest(tree, 2000);
 
-   // close file
-   file->Close();
+    // write trees into file
+    tree->Write();
+    tree_out->Write();
 
-   // free memory
-   delete file;
+    // close file
+    file->Close();
 
-   // ---- clean up ---- //
+    // free memory
+    delete file;
 
-   // free memory
-   delete m;
+    // ---- clean up ---- //
 
+    // free memory
+    delete m;
 }

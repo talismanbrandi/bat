@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -9,59 +9,148 @@
 // ---------------------------------------------------------
 
 #include "BCParameterSet.h"
-
 #include "BCLog.h"
-#include "BCParameter.h"
-
-#include <TString.h>
 
 // ---------------------------------------------------------
-bool BCParameterSet::Add(BCParameter * parameter)
+BCParameterSet::BCParameterSet()
+    : BCVariableSet<BCParameter>()
 {
-   if ( !parameter)
-      return false;
-   // check if parameter with same name exists
-   for (unsigned int i = 0; i < fPars.size() ; ++i)
-      if ( parameter->GetName() == fPars[i]->GetName() ) {
-         BCLog::OutError(TString::Format("BCParameterSet::Add : Parameter with name %s exists already. ",
-               parameter->GetName().data()));
-         return false;
-      }
-
-   // add parameter to parameter container
-   fPars.push_back(parameter);
-   return true;
 }
 
 // ---------------------------------------------------------
-void BCParameterSet::Clear(bool hard)
+unsigned int BCParameterSet::GetNFixedParameters() const
 {
-   if (hard) {
-      for (unsigned int i = 0; i < fPars.size() ; ++i)
-         delete fPars[i];
-   }
-
-   fPars.clear();
+    unsigned int n = 0;
+    for (unsigned int i = 0; i < Size(); ++i)
+        if (fVars[i].Fixed())
+            ++n;
+    return n;
 }
 
 // ---------------------------------------------------------
-bool BCParameterSet::ValidIndex(unsigned index, const std::string caller) const
+double BCParameterSet::Volume() const
 {
-   if (index >= fPars.size()) {
-      BCLog::OutError(TString::Format("BCParameterSet::%s : Parameter index %u out of range", caller.c_str(), index));
-      return false;
-   }
-   else
-      return true;
+    double volume = -1;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        if (!fVars[i].Fixed()) {
+            if ( volume < 0 )
+                volume = 1;
+            volume *= fVars[i].GetRangeWidth();
+        }
+    if (volume < 0)
+        return 0;
+    return volume;
 }
 
 // ---------------------------------------------------------
-unsigned BCParameterSet::Index(const std::string & name) const
+void BCParameterSet::SetPriorConstantAll()
 {
-   for (unsigned int i=0; i < fPars.size() ; ++i)
-      if (name == fPars[i]->GetName())
-         return i;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        fVars[i].SetPriorConstant();
+}
 
-   BCLog::OutWarning(TString::Format("BCParameterSet::Index: no parameter named '%s'", name.c_str()));
-   return fPars.size();
+// ---------------------------------------------------------
+double BCParameterSet::GetLogPrior(const std::vector<double>& parameters) const
+{
+    if (parameters.size() < fVars.size()) {
+        BCLog::OutError("BCParameterSet::GetLogPrior : incorrect size of parameter set provided.");
+        return -std::numeric_limits<double>::infinity();
+    }
+    double logprob = 0;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        logprob += fVars[i].GetLogPrior(parameters[i]);
+    return logprob;
+}
+
+// ---------------------------------------------------------
+std::vector<double> BCParameterSet::GetFixedValues(bool include_unfixed) const
+{
+    std::vector<double> v (fVars.size(), std::numeric_limits<double>::infinity());
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        if (include_unfixed or fVars[i].Fixed())
+            v[i] = fVars[i].GetFixedValue();
+    return v;
+}
+
+// ---------------------------------------------------------
+bool BCParameterSet::ArePriorsSet(bool ignore_fixed) const
+{
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        if (ignore_fixed and fVars[i].Fixed())
+            continue;
+        else if (fVars[i].GetPrior() == NULL)
+            return false;
+    return true;
+}
+
+// ---------------------------------------------------------
+bool BCParameterSet::IsWithinLimits(const std::vector<double>& x) const
+{
+    if (x.size() != fVars.size())
+        return false;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        if (fVars[i].Fixed()) {
+            if (fabs(x[i] - fVars[i].GetFixedValue()) > std::numeric_limits<double>::epsilon())
+                return false;
+        } else if (!fVars[i].IsWithinLimits(x[i]))
+            return false;
+    return true;
+}
+
+// ---------------------------------------------------------
+bool BCParameterSet::IsAtFixedValues(const std::vector<double>& x) const
+{
+    if (x.size() < fVars.size())
+        return false;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        if (fVars[i].Fixed() and (fVars[i].GetFixedValue() - x[i]) > std::numeric_limits<double>::epsilon())
+            return false;
+    return true;
+}
+
+// ---------------------------------------------------------
+void BCParameterSet::ValueFromPositionInRange(std::vector<double>& p) const
+{
+    if ( p.size() != fVars.size() )
+        return;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        p[i] = (fVars[i].Fixed()) ? fVars[i].GetFixedValue() : fVars[i].ValueFromPositionInRange(p[i]);
+}
+
+// ---------------------------------------------------------
+std::vector<double> BCParameterSet::GetRangeCenters() const
+{
+    std::vector<double> p;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        p.push_back((fVars[i].Fixed()) ? fVars[i].GetFixedValue() : fVars[i].GetRangeCenter());
+    return p;
+}
+
+// ---------------------------------------------------------
+std::vector<double> BCParameterSet::GetUniformRandomValues(TRandom* const R) const
+{
+    std::vector<double> p;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        p.push_back((fVars[i].Fixed()) ? fVars[i].GetFixedValue() : fVars[i].GetUniformRandomValue(R));
+    return p;
+}
+
+// ---------------------------------------------------------
+std::vector<double> BCParameterSet::GetRandomValuesAccordingToPriors(TRandom* const R) const
+{
+    std::vector<double> p;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        p.push_back((fVars[i].Fixed()) ? fVars[i].GetFixedValue() : fVars[i].GetRandomValueAccordingToPrior(R));
+    return p;
+}
+
+// ---------------------------------------------------------
+bool BCParameterSet::ApplyFixedValues(std::vector<double>& x) const
+{
+    if (x.size() != fVars.size())
+        return false;
+    for (unsigned i = 0; i < fVars.size(); ++i)
+        if (fVars[i].Fixed())
+            x[i] = fVars[i].GetFixedValue();
+    return true;
 }

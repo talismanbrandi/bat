@@ -12,9 +12,9 @@
 #include <GaussModel.h>
 #include <test.h>
 
-#include <BAT/BCLog.h>
 #include <BAT/BCAux.h>
-#include <BAT/BCModelOutput.h>
+#include <BAT/BCEmptyModel.h>
+#include <BAT/BCLog.h>
 
 #include <TFile.h>
 #include <TRandom3.h>
@@ -39,17 +39,17 @@ public:
      *
      * @param time The time of the last execution.
      */
-    void PrintValues(const double & time)
+    void PrintValues(const double& time)
     {
         static std::vector<double> real_time_array(0);
 
         real_time_array.push_back(time);
 
         // only print when two new values have been stored
-        if((real_time_array.size() % 2) == 1)
+        if ((real_time_array.size() % 2) == 1)
             return;
 
-        const double & previous_time = real_time_array.at(real_time_array.size() - 2);
+        const double& previous_time = real_time_array.at(real_time_array.size() - 2);
         std::cout << "previous time: " << previous_time << std::endl;
 
         const double diff =  previous_time - time;
@@ -60,10 +60,34 @@ public:
     }
 };
 
+struct BCCheckModel : BCEmptyModel {
+    BCCheckModel(const std::string& file) :
+        // need empty string to call ctor that searches for tree in file
+        BCEmptyModel(file, "")
+    {
+    }
+
+    TTree* Tree() const {return fMCMCTree;}
+
+    double prob() const {return fMCMCTree_Prob;}
+    unsigned phase() const {return fMCMCPhase;}
+    const std::vector<double>& parameters() const {return fMCMCTree_Parameters;}
+};
+
 class RunComparison
 {
 public:
-    struct Config{
+    struct Config {
+        /**
+         * The configure option to set the delay time */
+        long delay;
+        /**
+         * Multivariate Student's t degree of freedom.
+         */
+        double dof;
+        /**
+         * Multivariate proposal */
+        bool multivariate;
         /**
          * The configure option to set #markov chains */
         unsigned num_chains;
@@ -80,9 +104,6 @@ public:
          * The configure option to set the plotting of results */
         bool plot;
         /**
-         * The configure option to set the lag time */
-        long lag;
-        /**
          * The configure option which sets the root filename for serial output */
         std::string rootFileNameSerial;
         /**
@@ -91,12 +112,14 @@ public:
 
     private:
         Config():
+            delay(1e5),
+            dof(0),
+            multivariate(false),
             num_chains(4),
             num_entries(300),
             num_parameters(1),
-            num_iterations(100),
+            num_iterations(10000),
             plot(false),
-            lag(1e5),
             rootFileNameSerial(BAT_TESTDIR "parallel_TEST_GaussModelSerial.root"),
             rootFileNameParallel(BAT_TESTDIR "parallel_TEST_GaussModelParallel.root")
         {
@@ -104,7 +127,8 @@ public:
         }
 
     public:
-        static Config Default(){
+        static Config Default()
+        {
             return Config();
         }
     };
@@ -115,36 +139,8 @@ public:
     std::string GaussModel_plots_Serial;
     std::string GaussModel_plots_Parallel;
     unsigned seed;
-    struct DataHolder
-    {
-        unsigned fMCMCNIterations;
 
-        double fMCMCprob;
-        int fMCMCPhase;
-        std::vector<double> parameters;
-
-        DataHolder(TTree *tree) {
-            TEST_CHECK(tree);
-
-            tree->SetBranchAddress("Iteration",       &fMCMCNIterations);
-            tree->SetBranchAddress("LogProbability",  &fMCMCprob);
-            tree->SetBranchAddress("Phase",           &fMCMCPhase);
-
-            // need #parameters to initialize the vector
-            // todo dirty hack to remove fixed number that might change if cycle is dropped
-            tree->GetEntry(0);
-            parameters.resize(tree->GetNbranches() - 3);
-
-            for (unsigned k = 0; k < parameters.size(); ++k)
-            {
-                std::string parName = "Parameter" + stringify(k);
-
-                tree->SetBranchAddress(parName.c_str(),   &parameters[k]);
-            }
-        }
-    };
-
-    RunComparison(const RunComparison::Config & config) :
+    RunComparison(const RunComparison::Config& config) :
         config(config),
         GaussModel_plots_Serial(BAT_TESTDIR "parallel_TEST_GaussModel_plots_Serial.pdf"),
         GaussModel_plots_Parallel(BAT_TESTDIR "parallel_TEST_GaussModel_plots_Parallel.pdf"),
@@ -155,7 +151,8 @@ public:
         Check();
     }
 
-    void CreateOutput(const bool & parallelization) const {
+    void CreateOutput(const bool& parallelization) const
+    {
         Output op;
 
         omp_set_dynamic(0);
@@ -166,20 +163,20 @@ public:
         BCLog::SetLogLevel(BCLog::detail);
 
         // create new GaussModel object
-        GaussModel m(parallelization ? "Parallel evaluation" : "Serial evaluation", config.num_parameters, config.lag);
+        GaussModel m(parallelization ? "Parallel evaluation" : "Serial evaluation", config.num_parameters, config.delay);
 
         // set MCMC precision
-        m.MCMCSetPrecision(BCEngineMCMC::kMedium);
-        m.MCMCSetNIterationsRun(config.num_iterations);
-        m.MCMCSetNChains(config.num_chains);
-
-        // create new output object
-        BCModelOutput mout(&m, parallelization ? config.rootFileNameParallel.c_str() : config.rootFileNameSerial.c_str());
+        m.SetPrecision(BCEngineMCMC::kMedium);
+        m.SetNIterationsRun(config.num_iterations);
+        m.SetNChains(config.num_chains);
 
         // switch writing of Markov Chains on
-        mout.WriteMarkovChain(true);
+        m.WriteMarkovChain(parallelization ? config.rootFileNameParallel.c_str() : config.rootFileNameSerial.c_str(), "RECREATE", true);
 
-        m.MCMCSetRandomSeed(seed);
+        m.SetProposeMultivariate(config.multivariate);
+        m.SetProposalFunctionDof(config.dof);
+
+        m.SetRandomSeed(seed);
 
         TStopwatch sw;
         sw.Start();
@@ -189,11 +186,10 @@ public:
         m.SetMarginalizationMethod(BCIntegrate::kMargMetropolis);
         m.MarginalizeAll();
         sw.Stop();
-        double real_time=sw.RealTime();
+        double real_time = sw.RealTime();
         op.PrintValues(real_time);
 
-        if (config.plot)
-        {
+        if (config.plot) {
             if (parallelization)
                 m.PrintAllMarginalized(GaussModel_plots_Parallel.c_str());
             else
@@ -203,133 +199,113 @@ public:
         // close log file
         BCLog::CloseLog();
 
-        // close output file
-        mout.Close();
     }
 
     void Check() throw(TestCaseFailedException)
     {
-        TFile * rfile1 = TFile::Open(config.rootFileNameParallel.c_str());
-        TFile * rfile2 = TFile::Open(config.rootFileNameSerial.c_str());
-
-        if (!rfile1)
-          TEST_CHECK_FAILED(std::string("Could not open") + config.rootFileNameParallel);
-
-        if (!rfile2)
-          TEST_CHECK_FAILED(std::string("Could not open") + config.rootFileNameSerial);
-
-        // find the beginning of the main run
-        // assume there is at least one chain and all chains start main run at the same time
-        long long main_begin = 0;
+        // check if files were written
         {
-            TTree * one = NULL;
-            rfile1->GetObject("MarkovChainTree_0", one);
+            TFile* rfile0 = TFile::Open(config.rootFileNameParallel.c_str());
+            TFile* rfile1 = TFile::Open(config.rootFileNameSerial.c_str());
 
-            if (!one)
-                TEST_CHECK_FAILED("Could not locate first Markov chain");
+            if (!rfile0)
+                TEST_CHECK_FAILED(std::string("Could not open") + config.rootFileNameParallel);
 
-            DataHolder oneData(one);
-            for (; main_begin < one->GetEntries(); ++main_begin)
-            {
-                one->GetEntry(main_begin);
-                if (oneData.fMCMCPhase == 2)
-                    break;
-            }
-            delete one;
+            if (!rfile1)
+                TEST_CHECK_FAILED(std::string("Could not open") + config.rootFileNameSerial);
+
+            // clean up
+            rfile0->Close();
+            rfile1->Close();
+            delete rfile0;
+            delete rfile1;
         }
 
-        for (unsigned ichain = 0; ichain < config.num_chains; ++ichain) {
-            TTree * one = NULL;
-            TTree * two = NULL;
+        // reuse BAT's deserialization
+        static const unsigned M = 2;
+        BCCheckModel models[M] = {
+            BCCheckModel(config.rootFileNameParallel),
+            BCCheckModel(config.rootFileNameSerial),
+        };
 
-            rfile1->GetObject(TString::Format("MarkovChainTree_%d", ichain), one);
-            rfile2->GetObject(TString::Format("MarkovChainTree_%d", ichain), two);
+        // set all branch addresses
+        for (unsigned m = 0; m < M; ++m)
+            models[m].BCEngineMCMC::Remarginalize();
 
-            if (!one)
-              TEST_CHECK_FAILED(std::string("Could not locate tree in ") + config.rootFileNameParallel);
-            if (!two)
-              TEST_CHECK_FAILED(std::string("Could not locate tree in ") + config.rootFileNameSerial);
+        // trees should exist
+        if (!models[0].Tree())
+            TEST_CHECK_FAILED(std::string("Could not open tree from ") + config.rootFileNameParallel);
+        if (!models[1].Tree())
+            TEST_CHECK_FAILED(std::string("Could not open tree from ") + config.rootFileNameSerial);
 
-            DataHolder oneData(one);
-            DataHolder twoData(two);
-            long nEntries1 = one->GetEntries();
-            long nEntries2 = two->GetEntries();
+        // length has to match
+        long N = models[0].Tree()->GetEntries();
+        TEST_CHECK_EQUAL(N, models[1].Tree()->GetEntries());
 
-            TEST_CHECK_EQUAL(nEntries1, nEntries2);
+        // number of parameters has to match
+        unsigned npar = models[0].GetNParameters();
+        TEST_CHECK_EQUAL(npar, models[1].GetNParameters());
 
-            // check prerun(phase 1) and mainrun(phase 2) for identity
-            for (unsigned phase = 1; phase < 3 ; ++phase)
-            {
-                // loop over iterations
-                for(long long int entry = (phase - 1) * main_begin;
-                        entry <  (phase - 1) * main_begin + config.num_entries ; ++entry) {
-                    one->GetEntry(entry);
-                    two->GetEntry(entry);
 
-                    // loop over each dimension
-                    for (unsigned k = 0; k < oneData.parameters.size(); k++)
-                    {
-                        TEST_CHECK_EQUAL(oneData.parameters[k], twoData.parameters[k]);
-                    }
-                    TEST_CHECK_EQUAL(oneData.fMCMCprob, twoData.fMCMCprob);
-                    TEST_CHECK_EQUAL(oneData.fMCMCNIterations, twoData.fMCMCNIterations);
-                    TEST_CHECK_EQUAL(oneData.fMCMCPhase, twoData.fMCMCPhase);
-                }
+        /* compute mean chi2, include lag for independent samples*/
+
+        unsigned includedSamples = 0;
+        const unsigned lag = 20;
+        double chi2 = 0.0;
+        double meanChi2 = 0.0;
+
+        /* compare data for each iteration */
+
+        for (unsigned n = 0; n < N; ++n) {
+            // read in data from iteration n
+            for (unsigned m = 0; m < M; ++m)
+                models[m].Tree()->GetEntry(n);
+
+            // loop over each dimension
+            for (unsigned p = 0; p < npar; ++p) {
+                TEST_CHECK_EQUAL(models[0].parameters().at(p), models[1].parameters().at(p));
             }
-#if 0
-            // check that two consecutive values change only on at most one parameter
-            // take only first two parameters
-            if (oneData.parameters.size() > 1)
-            {
-               one->GetEntry(0);
-               two->GetEntry(0);
 
-               double previousX = oneData.parameters[0];
-               double previousY = oneData.parameters[1];
+            TEST_CHECK_EQUAL(models[0].prob(), models[1].prob());
+            TEST_CHECK_EQUAL(models[0].phase(), models[1].phase());
 
-               for (unsigned phase = 1; phase < 3 ; ++phase)
-               {
-                  // loop over iterations
-                  for(long long int entry = (phase - 1) * main_begin + 1;
-                        entry <  (phase - 1) * main_begin + config.num_entries ; ++entry) {
-                     one->GetEntry(entry);
-                     two->GetEntry(entry);
-
-                     std::cout << print_container(oneData.parameters) << std::endl;
-                     if (oneData.parameters[0] != previousX and oneData.parameters[1] != previousY)
-                     {
-                        std::string msg = "Two (or more) parameters changed at once in iteration " + stringify(entry) + ":\n";
-                        msg += stringify(previousX) + "->" + stringify(oneData.parameters[0]) + ", ";
-                        msg += stringify(previousY) + "->" + stringify(oneData.parameters[1]);
-                        TEST_CHECK_FAILED(msg);
-                     }
-
-                     previousX = oneData.parameters[0];
-                     previousY = oneData.parameters[1];
-                  }
-               }
+            // check only in main run
+            if ((models[0].phase() == 1) && (n % lag == 0)) {
+                ++includedSamples;
+                chi2 = 0;
+                for (unsigned p = 0; p < npar; ++p)
+                    chi2 += models[0].parameters().at(p) * models[0].parameters().at(p);
+                meanChi2 += (chi2 - meanChi2) / includedSamples;
             }
-            else
-            {
-               TEST_CHECK_FAILED("Need at least two parameters to check one-parameter-at-a-time proposal");
-            }
-#endif
-            delete one;
-            delete two;
         }
 
-        // clean up
-        rfile1->Close();
-        rfile2->Close();
-        delete rfile1;
-        delete rfile2;
+        // clean up output files
         remove(config.rootFileNameParallel.c_str());
         remove(config.rootFileNameSerial.c_str());
+
+        /* check that samples are from a Gaussian */
+
+        // chi2 distribution has std. dev sqrt(2 / npar). Allow 2 sigma range
+        TEST_CHECK_NEARLY_EQUAL(meanChi2 / npar, 1.0, 2 * std::sqrt(2.0 / npar));
+
+        for (unsigned c = 0; c < models[0].GetNChains(); ++c) {
+            const BCEngineMCMC::Statistics& s = models[0].GetStatistics(c);
+            TEST_CHECK_EQUAL(s.n_samples, config.num_iterations);
+
+            // unit Gaussian
+            for (unsigned i = 0; i < models[0].GetNParameters(); ++i) {
+                TEST_CHECK_NEARLY_EQUAL(s.mean.at(i), 0, 2e-1);
+                TEST_CHECK_NEARLY_EQUAL(s.variance.at(i), 1, 5e-1);
+                for (unsigned j = i + 1; j < models[0].GetNParameters(); ++j) {
+                    TEST_CHECK_NEARLY_EQUAL(s.covariance.at(i).at(j), 0, 5e-1);
+                }
+            }
+        }
     }
 };
 
 class ParallelTest :
-public TestCase
+    public TestCase
 {
 public:
     ParallelTest():
@@ -345,12 +321,24 @@ public:
 
         RunComparison::Config config = RunComparison::Config::Default();
 
-        config.num_chains = 4;
-        config.num_parameters = 1;
-        config.lag = 5e4;
-        {
+        config.num_chains = 2;
+        config.num_parameters = 5;
+        config.delay = 1e2;
+
+        TEST_SECTION("product proposal", {
+            config.multivariate = false;
             RunComparison comparison(config);
-        }
+        });
+
+        TEST_SECTION("multivariate Gaussian proposal", {
+            config.multivariate = true;
+            RunComparison comparison(config);
+        });
+        TEST_SECTION("multivariate Cauchy proposal", {
+            config.multivariate = true;
+            config.dof = 1.0;
+            RunComparison comparison(config);
+        });
     }
 } parallel_test;
 }

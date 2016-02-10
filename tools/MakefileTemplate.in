@@ -1,7 +1,7 @@
 ###################################################################
-# This Makefile was created using the |:PROGRAM:| script
-# for project |:Project:|
-# |:PROGRAM:| is part of Bayesian Analysis Toolkit (BAT).
+# This Makefile was created using the ((PROGRAM)) script
+# for project ((PROJECT))
+# ((PROGRAM)) is part of Bayesian Analysis Toolkit (BAT).
 # BAT can be downloaded from http://mpp.mpg.de/bat
 ###################################################################
 #
@@ -14,56 +14,64 @@
 #
 ###################################################################
 
+# List of all class (models) sources used in the program
+# Add classes to the end. Backslash indicates continuation
+# on the next line
+CXXSRCS = ((MODEL)).cxx
+
+# List of all program sources used in the program
+# Add classes to the end. Backslash indicates continuation
+# on the next line
+PRGSRCS = run((PROJECT)).cxx
+
 # compiler and flags
-CXX          = @CXX@
-CXXFLAGS     = -g -O2 -Wall -fPIC -Wno-deprecated @CXXFLAGS@
-LD           = @LD@
-LDFLAGS      = -g -O2 @LDFLAGS@
+CXX       = @CXX@
+CXXFLAGS  = -g -O2 -Wall -fPIC -Wno-deprecated @CXXFLAGS@
+LD        = @LD@
+LDFLAGS   = -g -O2 @LDFLAGS@
 
 # ----------------------------------------------------------------------
 # The following definitions rely on the script bat-config being
 # available in $PATH. If BAT is not installed in the standard system
 # directories, update $PATH accordingly.
 
-CXXFLAGS += `bat-config --cflags`
-LIBS := `bat-config --libs`
-
-# List of all classes (models) used in the program
-# Add classes to the end. Backslash indicates continuation
-# on the next line
-CXXSRCS      = \
-	run|:Model:|.cxx |:Model:|.cxx
+CXXFLAGS += $(shell bat-config --cflags)
+LIBS := $(shell bat-config --libs)
 
 # ----------------------------------------------------------------------
 # don't change lines below unless you know what you're doing
 #
 
-CXXOBJS      = $(patsubst %.cxx,%.o,$(CXXSRCS))
-MYPROGS     = run|:Project:|
+CXXOBJS = $(addsuffix .o,$(basename $(CXXSRCS)))
+MYPROGS = $(basename $(PRGSRCS))
+PRGOBJS = $(addsuffix .o,$(basename $(PRGSRCS)))
 
-GARBAGE      = $(CXXOBJS) *.o *~ link.d $(MYPROGS)
+GARBAGE = $(CXXOBJS) $(PRGOBJS) link.d $(MYPROGS)
 
 # targets
-all : run|:Model:|
+all : $(MYPROGS)
 
-link.d : $(patsubst %.cxx,%.h,$(CXXSRCS))
-	$(CXX) -MM $(CXXFLAGS) $(CXXSRCS) > link.d;
+.PHONY : all clean print
+
+link.d : $(addsuffix .h,$(basename $(CXXSRCS))) $(CXXSRCS) $(PRGSRCS)
+	$(CXX) -MM $(CXXFLAGS) $(filter-out %.h,$^) > link.d;
+	@$(foreach prog,$(MYPROGS), echo $(prog) : $(prog).o >> link.d;)
 
 -include link.d
 
-%.o : %.cxx
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(CXXOBJS) $(PRGOBJS) :
+	$(CXX) $(CXXFLAGS) -c $(filter $(basename $@).%,$(filter-out %.h,$^)) -o $@
+
+$(MYPROGS) : $(CXXOBJS)
+	$(CXX) $(LDFLAGS) $^ $(LIBS) -o $@
 
 clean :
 	rm -f $(GARBAGE)
 
-run|:Model:| : $(CXXOBJS)
-	$(CXX) $(LDFLAGS) $(CXXOBJS) $(LIBS) -o run|:Project:|
-
 print :
 	@echo compiler  : $(CXX)
-	@echo c++ srcs  : $(CXXSRCS)
-	@echo c++ objs  : $(CXXOBJS)
+	@echo c++ srcs  : $(CXXSRCS) $(PRGSRCS)
+	@echo c++ objs  : $(CXXOBJS) $(PRGOBJS)
 	@echo c++ flags : $(CXXFLAGS)
 	@echo ld flags  : $(LDFLAGS)
 	@echo libs      : $(LIBS)

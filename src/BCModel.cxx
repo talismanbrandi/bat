@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -10,1096 +10,482 @@
 
 #include "BCModel.h"
 
-#include "BCDataPoint.h"
 #include "BCDataSet.h"
-#include "BCGoFTest.h"
 #include "BCH1D.h"
 #include "BCH2D.h"
 #include "BCLog.h"
 #include "BCMath.h"
-#include "BCModelOutput.h"
 #include "BCParameter.h"
+#include "BCPriorModel.h"
+#include "BCPrior.h"
+#include "BCConstantPrior.h"
 
 #include <TCanvas.h>
-#include <TF1.h>
-#include <TGraph.h>
-#include <TH2D.h>
-#include <TMath.h>
-#include <TRandom3.h>
+#include <TH1.h>
+#include <TH2.h>
 #include <TTree.h>
 
-#include <fstream>
-#include <iomanip>
-#include <set>
-
 // ---------------------------------------------------------
-BCModel::BCModel(const char * name) :
-   BCIntegrate(),
-   fName((char *) name),
-   fModelAPriori(0),
-   fModelAPosteriori(0),
-   fDataSet(0),
-   fDataPointLowerBoundaries(0),
-   fDataPointUpperBoundaries(0),
-   fPValue(-1),
-   fChi2NDoF(-1),
-   fPValueNDoF(-1),
-   flag_discrete(false),
-   fGoFNIterationsMax(100000),
-   fGoFNIterationsRun(2000),
-   fGoFNChains(5),
-   fPriorConstantAll(false)
+BCModel::BCModel(const std::string& name)
+    : BCIntegrate(name)
+    , fDataSet(0)
+    , fPriorModel(0)
+    , fDrawPriorFirst(true)
+    , fFactorizedPrior(false)
 {
+    SetKnowledgeUpdateDrawingStyle(BCAux::kKnowledgeUpdateDefaultStyle);
 }
 
 // ---------------------------------------------------------
-BCModel::BCModel(const BCModel & bcmodel) : BCIntegrate(bcmodel)
+BCModel::BCModel(const std::string& filename, const std::string& name, bool loadObservables)
+    : BCIntegrate(filename, name, loadObservables)
+    , fDataSet(0)
+    , fPriorModel(0)
+    , fDrawPriorFirst(true)
+    , fFactorizedPrior(false)
 {
-	Copy(bcmodel);
+    SetPriorConstantAll();
+    SetKnowledgeUpdateDrawingStyle(BCAux::kKnowledgeUpdateDefaultStyle);
 }
 
 // ---------------------------------------------------------
-void BCModel::Copy(const BCModel & bcmodel)
+BCModel::BCModel(const BCModel& other)
+    : BCIntegrate(other),
+      fDataSet(other.fDataSet),
+      fPriorModel(0),
+      fBCH1DPriorDrawingOptions(other.fBCH1DPriorDrawingOptions),
+      fBCH2DPriorDrawingOptions(other.fBCH2DPriorDrawingOptions),
+      fBCH1DPosteriorDrawingOptions(other.fBCH1DPosteriorDrawingOptions),
+      fBCH2DPosteriorDrawingOptions(other.fBCH2DPosteriorDrawingOptions),
+      fDrawPriorFirst(other.fDrawPriorFirst),
+      fFactorizedPrior(other.fFactorizedPrior)
 {
-   //  called for the second time in copy constructor? do copy-and-swap instead
-   //   BCIntegrate::Copy(bcmodel);
-   fName                            = bcmodel.fName;
-   fModelAPriori                    = bcmodel.fModelAPriori;
-   fModelAPosteriori                = bcmodel.fModelAPosteriori;
-   if (fDataSet)
-      fDataSet = bcmodel.fDataSet;
-   else
-      fDataSet = 0;
-
-   if (bcmodel.fDataPointLowerBoundaries)
-      fDataPointLowerBoundaries = new BCDataPoint(*bcmodel.fDataPointLowerBoundaries);
-   else
-      fDataPointLowerBoundaries = 0;
-   if (bcmodel.fDataPointUpperBoundaries)
-      fDataPointUpperBoundaries = new BCDataPoint(*bcmodel.fDataPointUpperBoundaries);
-   else
-      fDataPointUpperBoundaries = 0;
-
-   fDataFixedValues                 = bcmodel.fDataFixedValues;
-
-   fPValue                          = bcmodel.fPValue;
-   fChi2NDoF                        = bcmodel.fChi2NDoF;
-   fPValueNDoF                      = bcmodel.fPValueNDoF;
-   flag_discrete                    = bcmodel.flag_discrete;
-   fGoFNIterationsMax               = bcmodel.fGoFNIterationsMax;
-   fGoFNIterationsRun               = bcmodel.fGoFNIterationsRun;
-   fGoFNChains                      = bcmodel.fGoFNChains;
-   for (int i = 0; i < int(bcmodel.fPriorContainer.size()); ++i) {
-      if (bcmodel.fPriorContainer.at(i))
-         fPriorContainer.push_back(new TNamed(*bcmodel.fPriorContainer.at(i)));
-      else
-         fPriorContainer.push_back(0);
-   }
-   fPriorConstantAll                = bcmodel.fPriorConstantAll;
-   fPriorContainerConstant          = bcmodel.fPriorContainerConstant;
-   fPriorContainerInterpolate       = bcmodel.fPriorContainerInterpolate;
 }
 
 // ---------------------------------------------------------
 BCModel::~BCModel()
 {
-   for (unsigned int i = 0; i < GetNParameters(); ++i)
-      delete fPriorContainer[i];
-   fPriorContainer.clear();
-
-   delete fDataPointLowerBoundaries;
-   delete fDataPointUpperBoundaries;
+    delete fPriorModel;
 }
 
 // ---------------------------------------------------------
-BCModel & BCModel::operator = (const BCModel & bcmodel)
+void swap(BCModel& A, BCModel& B)
 {
-   Copy(bcmodel);
-
-   return *this;
+    swap(static_cast<BCModel&>(A), static_cast<BCModel&>(B));
+    std::swap(A.fDataSet, B.fDataSet);
+    std::swap(A.fPriorModel, B.fPriorModel);
+    std::swap(A.fBCH1DPriorDrawingOptions, B.fBCH1DPriorDrawingOptions);
+    std::swap(A.fBCH2DPriorDrawingOptions, B.fBCH2DPriorDrawingOptions);
+    std::swap(A.fBCH1DPosteriorDrawingOptions, B.fBCH1DPosteriorDrawingOptions);
+    std::swap(A.fBCH2DPosteriorDrawingOptions, B.fBCH2DPosteriorDrawingOptions);
+    std::swap(A.fDrawPriorFirst, B.fDrawPriorFirst);
+    std::swap(A.fFactorizedPrior, B.fFactorizedPrior);
 }
 
 // ---------------------------------------------------------
-unsigned BCModel::GetNDataPoints() const
+double BCModel::LogProbabilityNN(const std::vector<double>& parameters)
 {
-   if (fDataSet)
-      return fDataSet->GetNDataPoints();
-   else
-      return 0;
-   }
+    // first calculate prior (which is usually cheaper than likelihood)
+    double lp = LogAPrioriProbability(parameters);
+    // then calculation likelihood, or set to -inf, if prior already invalid
+    double ll = (std::isfinite(lp)) ? LogLikelihood(parameters) : -std::numeric_limits<double>::infinity();;
 
-// ---------------------------------------------------------
-BCDataPoint * BCModel::GetDataPoint(unsigned int index) const
-{
-   if (fDataSet)
-      return fDataSet->GetDataPoint(index);
-
-   BCLog::OutWarning("BCModel::GetDataPoint : No data set defined.");
-   return 0;
+    if (GetCurrentChain() < fMCMCLogLikelihood_Provisional.size() && GetCurrentChain() < fMCMCLogPrior_Provisional.size()) {
+        fMCMCLogLikelihood_Provisional[GetCurrentChain()] = ll;
+        fMCMCLogPrior_Provisional[GetCurrentChain()] = lp;
+    }
+    return ll + lp;
 }
 
 // ---------------------------------------------------------
-double BCModel::GetDataPointLowerBoundary(unsigned int index) const
+double BCModel::LogProbability(const std::vector<double>& parameters)
 {
-    return fDataPointLowerBoundaries -> GetValue(index);
+    // check if normalized
+    if (GetIntegral() <= 0.) {
+        BCLog::OutError("BCModel::LogProbability. Normalization not available or zero.");
+        return 0.;
+    }
+
+    return LogProbabilityNN(parameters) - log(GetIntegral());
 }
 
 // ---------------------------------------------------------
-double BCModel::GetDataPointUpperBoundary(unsigned int index) const
+void BCModel::InitializeMarkovChainTree(bool replacetree, bool replacefile)
 {
-    return fDataPointUpperBoundaries -> GetValue(index);
+    BCEngineMCMC::InitializeMarkovChainTree(replacetree, replacefile);
+    if (!fMCMCTree)
+        return;
+    fMCMCTree->Branch("LogLikelihood", &fMCMCTree_LogLikelihood, "log(likelihood)/D");
+    fMCMCTree->Branch("LogPrior",      &fMCMCTree_LogPrior,      "log(prior)/D");
 }
 
 // ---------------------------------------------------------
-bool BCModel::GetFlagBoundaries() const
+double BCModel::SamplingFunction(const std::vector<double>& /*parameters*/)
 {
-   if (!fDataPointLowerBoundaries)
-      return false;
-
-   if (!fDataPointUpperBoundaries)
-      return false;
-
-   if (fDataPointLowerBoundaries->GetNValues() != fDataSet->GetDataPoint(0)->GetNValues())
-      return false;
-
-   if (fDataPointUpperBoundaries->GetNValues() != fDataSet->GetDataPoint(0)->GetNValues())
-      return false;
-
-   return true;
+    double probability = 1;
+    for (unsigned i = 0 ; i < GetNParameters() ; ++i)
+        probability *= 1. / GetParameter(i).GetRangeWidth();
+    return probability;
 }
 
 // ---------------------------------------------------------
-void BCModel::SetSingleDataPoint(BCDataPoint * datapoint)
+double BCModel::HessianMatrixElement(unsigned index1, unsigned index2, const std::vector<double>& point)
 {
-   // create new data set consisting of a single data point
-   BCDataSet * dataset = new BCDataSet();
+    // check number of entries in vector
+    if (point.size() < GetNParameters()) {
+        BCLog::OutError("BCModel::HessianMatrixElement : Invalid number of entries in the vector.");
+        return -1;
+    }
 
-   // add the data point
-   dataset->AddDataPoint(datapoint);
+    // define steps
+    double nsteps = 1e5;
+    double dx1 = GetVariable(index1).GetRangeWidth() / nsteps;
+    double dx2 = GetVariable(index2).GetRangeWidth() / nsteps;
 
-   // set this new data set
-   SetDataSet(dataset);
+    // define points at which to evaluate
+    std::vector<double> xpp = point;
+    std::vector<double> xpm = point;
+    std::vector<double> xmp = point;
+    std::vector<double> xmm = point;
+
+    xpp[index1] += dx1;
+    xpp[index2] += dx2;
+
+    xpm[index1] += dx1;
+    xpm[index2] -= dx2;
+
+    xmp[index1] -= dx1;
+    xmp[index2] += dx2;
+
+    xmm[index1] -= dx1;
+    xmm[index2] -= dx2;
+
+    // calculate probability at these points
+    double ppp = Likelihood(xpp);
+    double ppm = Likelihood(xpm);
+    double pmp = Likelihood(xmp);
+    double pmm = Likelihood(xmm);
+
+    // return derivative
+    return (ppp + pmm - ppm - pmp) / (4. * dx1 * dx2);
 }
 
 // ---------------------------------------------------------
-void BCModel::SetSingleDataPoint(BCDataSet * dataset, unsigned int index)
+void BCModel::PrintShortFitSummary()
 {
-   if (index > dataset->GetNDataPoints())
-      return;
-
-   SetSingleDataPoint(dataset->GetDataPoint(index));
-}
-
-// ---------------------------------------------------------
-void BCModel::SetDataBoundaries(unsigned int index, double lowerboundary, double upperboundary, bool fixed)
-{
-   // check if data set exists
-   if (!fDataSet) {
-      BCLog::OutError("BCModel::SetDataBoundaries : Need to define data set first.");
-      return;
-   }
-
-   // check if index is within range
-   if (index > fDataSet->GetDataPoint(0)->GetNValues()) {
-      BCLog::OutError("BCModel::SetDataBoundaries : Index out of range.");
-      return;
-   }
-
-   // check if boundary data points exist
-   if (!fDataPointLowerBoundaries)
-      fDataPointLowerBoundaries = new BCDataPoint(fDataSet->GetDataPoint(0)->GetNValues());
-
-   if (!fDataPointUpperBoundaries)
-      fDataPointUpperBoundaries = new BCDataPoint(fDataSet->GetDataPoint(0)->GetNValues());
-
-   if (fDataFixedValues.size() == 0)
-      fDataFixedValues.assign(fDataSet->GetDataPoint(0)->GetNValues(), false);
-
-   // set boundaries
-   fDataPointLowerBoundaries->SetValue(index, lowerboundary);
-   fDataPointUpperBoundaries->SetValue(index, upperboundary);
-   fDataFixedValues[index] = fixed;
-}
-
-// ---------------------------------------------------------
-int BCModel::AddParameter(BCParameter * parameter)
-{
-	if ( !BCEngineMCMC::AddParameter(parameter))
-		return 1;
-
-   // add empty object to prior container
-   fPriorContainer.push_back(0);
-
-   // don't interpolate the prior histogram by default
-   fPriorContainerInterpolate.push_back(false);
-
-   // prior assumed to be non-constant in general case
-   fPriorContainerConstant.push_back(false);
-
-   return 0;
-}
-
-// ---------------------------------------------------------
-double BCModel::ProbabilityNN(const std::vector<double> &params)
-{
-   return exp(LogProbabilityNN(params) );
-}
-
-// ---------------------------------------------------------
-double BCModel::Probability(const std::vector<double> &parameter)
-{
-   return exp(LogProbability(parameter));
-}
-
-// ---------------------------------------------------------
-double BCModel::LogProbability(const std::vector<double> &parameters)
-{
-   // check if normalized
-  if (GetIntegral() <= 0.) {
-      BCLog::OutError("BCModel::LogProbability. Normalization not available or zero.");
-      return 0.;
-   }
-
-  return LogProbabilityNN(parameters) - log(GetIntegral());
-}
-
-// ---------------------------------------------------------
-double BCModel::APrioriProbability(const std::vector<double> &parameters)
-{
-   return exp(this->LogAPrioriProbability(parameters) );
-}
-
-// ---------------------------------------------------------
-double BCModel::LogAPrioriProbability(const std::vector<double> &parameters)
-{
-   double logprob = 0;
-
-   // loop over all parameters, assume prior factorizes
-   // into n independent parts
-   for (unsigned i = 0; i < fParameters.Size(); ++i) {
-      BCParameter * par = fParameters[i];
-
-      // avoid fixed and zero-width parameters
-      if (par->Fixed() or not par->GetRangeWidth())
-         continue;
-
-      if (fPriorContainerConstant[i]) {
-         logprob -= log(par->GetRangeWidth());
-         continue;
-      }
-
-      if (fPriorContainer[i]) {
-         // check what type of object is stored
-         TF1 * f = dynamic_cast<TF1*>(fPriorContainer[i]);
-         TH1 * h = dynamic_cast<TH1*>(fPriorContainer[i]);
-
-         if (f) // TF1
-            logprob += log(f->Eval(parameters[i]));
-         else if (h) { // TH1
-            if(fPriorContainerInterpolate[i])
-               logprob += log(h->Interpolate(parameters[i]));
-            else
-               logprob += log(h->GetBinContent(h->FindBin(parameters[i])));
-         }
-         else
-            BCLog::OutError(Form(
-                  "BCModel::LogAPrioriProbability : Prior for parameter %s "
-                  "is defined but not recognized.",
-                  par->GetName().c_str())); // this should never happen
-      }
-      // use constant only if user has defined it
-      else {
-         BCLog::OutError(Form(
-               "BCModel::LogAPrioriProbability: Prior for parameter %s "
-               "is undefined. Using constant prior to proceed.",
-               par->GetName().c_str()));
-         logprob -= log(par->GetRangeWidth());
-      }
-   }
-
-   return logprob;
-}
-
-// ---------------------------------------------------------
-double BCModel::Likelihood(const std::vector<double> &params)
-{
-   return exp(LogLikelihood(params));
-}
-
-// ---------------------------------------------------------
-double BCModel::Eval(const std::vector<double> &parameters)
-{
-   return exp(LogEval(parameters));
-}
-
-// ---------------------------------------------------------
-double BCModel::LogEval(const std::vector<double> &parameters)
-{
-   return LogProbabilityNN(parameters);
-}
-
-// ---------------------------------------------------------
-double BCModel::SamplingFunction(const std::vector<double> & /*parameters*/)
-{
-   double probability = 1;
-   for (unsigned i = 0 ; i < GetNParameters() ; ++i)
-      probability *= 1. / fParameters[i]->GetRangeWidth();
-   return probability;
-}
-
-// ---------------------------------------------------------
-double BCModel::GetPvalueFromChi2(const std::vector<double> &par, int sigma_index)
-{
-   double ll = LogLikelihood(par);
-   int n = GetNDataPoints();
-
-   double sum_sigma = 0;
-   for (int i = 0; i < n; i++)
-      sum_sigma += log(GetDataPoint(i)->GetValue(sigma_index));
-
-   double chi2 = -2. * (ll + (double) n / 2. * log(2. * M_PI) + sum_sigma);
-
-   fPValue = TMath::Prob(chi2, n);
-
-   return fPValue;
-}
-
-// ---------------------------------------------------------
-std::vector<double> BCModel::GetChi2Runs(int /*dataIndex*/, int /*sigmaIndex*/)
-{
-   std::vector<double> x;
-   return x;
-}
-
-// ---------------------------------------------------------
-double BCModel::GetPvalueFromChi2NDoF(std::vector<double> par, int sigma_index)
-{
-   double ll = LogLikelihood(par);
-   int n = GetNDataPoints();
-   int npar = GetNParameters();
-
-   double sum_sigma = 0;
-   for (int i = 0; i < n; i++)
-      sum_sigma += log(GetDataPoint(i)->GetValue(sigma_index));
-
-   double chi2 = -2. * (ll + (double) n / 2. * log(2. * M_PI) + sum_sigma);
-
-   fChi2NDoF = chi2 / double(n - npar);
-   fPValueNDoF = TMath::Prob(chi2, n - npar);
-
-   return fPValueNDoF;
-}
-
-// ---------------------------------------------------------
-double BCModel::GetPvalueFromKolmogorov(const std::vector<double>& par,int index)
-{
-   if (flag_discrete) {
-      BCLog::OutError(Form("BCModel::GetPvalueFromKolmogorov : "
-            "test defined only for continuous distributions."));
-      return -1.;
-   }
-
-   //calculate the ECDF from the 1D data
-   std::vector<double> yData = fDataSet->GetDataComponents(index);
-   TH1D * ECDF = BCMath::ECDF(yData);
-
-   int N = GetNDataPoints();
-
-   // calculated expected CDF for unique points only
-   std::set<double> uniqueObservations;
-   for (int i = 0; i < N; i++)
-      uniqueObservations.insert(CDF(par, i, false));
-
-   int nUnique = uniqueObservations.size();
-   if (nUnique != ECDF->GetNbinsX() + 1) {
-      BCLog::OutError(Form("BCModel::GetPvalueFromKolmogorov : "
-            "Number of unique data points doesn't match (%d vs %d)", nUnique,
-            ECDF->GetNbinsX() + 1));
-      return -1.;
-   }
-
-   // find maximum distance
-   double distMax = 0.;
-
-   // current distance
-   double dist = 0.;
-
-   std::set<double>::const_iterator iter = uniqueObservations.begin();
-   for (int iBin = 0; iBin < nUnique; ++iBin) {
-      // distance between current points
-      dist = TMath::Abs(*iter - ECDF->GetBinContent(iBin + 1));
-      // update maximum if necessary
-      distMax = TMath::Max(dist, distMax);
-
-      // advance to next entry in the set
-      ++iter;
-   }
-
-   // correct for total #points, not unique #points.
-   // would need sqrt(n1*n2/(n1+n2)) if we had two experimental datasets
-   double z = distMax * sqrt(N);
-
-   fPValue = TMath::KolmogorovProb(z);
-
-   // clean up
-   delete ECDF;
-
-   return fPValue;
-}
-
-// ---------------------------------------------------------
-BCH1D * BCModel::CalculatePValue(std::vector<double> par, bool flag_histogram)
-{
-   BCH1D * hist = 0;
-
-   // print log
-   BCLog::OutSummary("Do goodness-of-fit-test");
-
-   // create model test
-   BCGoFTest * goftest = new BCGoFTest("modeltest");
-
-   // set this model as the model to be tested
-   goftest->SetTestModel(this);
-
-   // set the point in parameter space which is tested an initialize
-   // the model testing
-   if (!goftest->SetTestPoint(par))
-      return 0;
-
-   // disable the creation of histograms to save _a lot_ of memory
-   // (histograms are not needed for p-value calculation)
-   goftest->MCMCSetFlagFillHistograms(false);
-
-   // set parameters of the MCMC for the GoFTest
-   goftest->MCMCSetNChains(fGoFNChains);
-   goftest->MCMCSetNIterationsMax(fGoFNIterationsMax);
-   goftest->MCMCSetNIterationsRun(fGoFNIterationsRun);
-
-   // get p-value
-   fPValue = goftest->GetCalculatedPValue(flag_histogram);
-
-   // get histogram
-   if (flag_histogram) {
-      hist = new BCH1D();
-      hist->SetHistogram(goftest->GetHistogramLogProb());
-   }
-
-   // delete model test
-   delete goftest;
-
-   // return histogram
-   return hist;
-}
-
-// ---------------------------------------------------------
-void BCModel::CorrelateDataPointValues(std::vector<double> & /*x*/)
-{
-   // ...
-}
-
-// ---------------------------------------------------------
-double BCModel::HessianMatrixElement(const BCParameter * par1, const BCParameter * par2, std::vector<double> point)
-{
-   // check number of entries in vector
-   if (point.size() != GetNParameters()) {
-      BCLog::OutError("BCModel::HessianMatrixElement : Invalid number of entries in the vector.");
-      return -1;
-   }
-
-   // define steps
-   double nsteps = 1e5;
-   double dx1 = par1->GetRangeWidth() / nsteps;
-   double dx2 = par2->GetRangeWidth() / nsteps;
-
-   // define points at which to evaluate
-   std::vector<double> xpp = point;
-   std::vector<double> xpm = point;
-   std::vector<double> xmp = point;
-   std::vector<double> xmm = point;
-
-   unsigned idx1 = fParameters.Index(par1->GetName());
-   unsigned idx2 = fParameters.Index(par2->GetName());
-
-   xpp[idx1] += dx1;
-   xpp[idx2] += dx2;
-
-   xpm[idx1] += dx1;
-   xpm[idx2] -= dx2;
-
-   xmp[idx1] -= dx1;
-   xmp[idx2] += dx2;
-
-   xmm[idx1] -= dx1;
-   xmm[idx2] -= dx2;
-
-   // calculate probability at these points
-   double ppp = LogLikelihood(xpp) + LogAPrioriProbability(xpp);
-   double ppm = LogLikelihood(xpm) + LogAPrioriProbability(xpm);
-   double pmp = LogLikelihood(xmp) + LogAPrioriProbability(xmp);
-   double pmm = LogLikelihood(xmm) + LogAPrioriProbability(xmm);
-
-   // return derivative
-   return (ppp + pmm - ppm - pmp) / (4. * dx1 * dx2);
-}
-
-// ---------------------------------------------------------
-void BCModel::SetDataPointLowerBoundary(int index, double lowerboundary)
-{
-   fDataPointLowerBoundaries -> SetValue(index, lowerboundary);
-}
-
-// ---------------------------------------------------------
-void BCModel::SetDataPointUpperBoundary(int index, double upperboundary)
-{
-   fDataPointUpperBoundaries -> SetValue(index, upperboundary);
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPrior(int index, TF1 * f)
-{
-   // check index range
-   if (index < 0 && index >= int(GetNParameters())) {
-      BCLog::OutError("BCModel::SetPrior : Index out of range.");
-      return 0;
-   }
-
-   if (fPriorContainer[index])
-      delete fPriorContainer[index];
-
-   // copy function
-   fPriorContainer[index] = new TF1(*f);
-
-   fPriorContainerConstant[index] = false;
-
-   // no error
-   return 1;
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPrior(const char * name, TF1 * f)
-{
-   // find index
-   int index = -1;
-   for (unsigned int i = 0; i < GetNParameters(); i++)
-      if (name == GetParameter(i)->GetName())
-         index = i;
-
-   // set prior
-   return SetPrior(index, f);
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorDelta(int index, double value)
-{
-   // set range to value
-   GetParameter(index)->Fix(value);
-
-   // set prior
-   return 1;
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorDelta(const char* name, double value)
-{
-   fParameters.Get(name)->Fix(value);
-
-   return 1;
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorGauss(int index, double mean, double sigma)
-{
-   // check index range
-   if (index < 0 || index >= int(GetNParameters())) {
-      BCLog::OutError("BCModel::SetPriorGauss : Index out of range.");
-      return 0;
-   }
-
-   // create new function
-   TF1 * f = new TF1(Form("prior_%s", GetParameter(index)->GetName().c_str()),
-         "1./sqrt(2.*TMath::Pi())/[1] * exp(- (x-[0])*(x-[0])/2./[1]/[1])",
-         GetParameter(index)->GetLowerLimit(),
-         GetParameter(index)->GetUpperLimit());
-   f->SetParameter(0, mean);
-   f->SetParameter(1, sigma);
-
-   // set prior
-   return SetPrior(index, f);
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorGauss(const char* name, double mean, double sigma)
-{
-   // find index
-   int index = -1;
-   for (unsigned int i = 0; i < GetNParameters(); i++)
-      if (name == GetParameter(i)->GetName())
-         index = i;
-
-   // set prior
-   return SetPriorGauss(index, mean, sigma);
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorGauss(int index, double mean, double sigmadown, double sigmaup)
-{
-   // check index range
-   if (index < 0 || index >= int(GetNParameters())) {
-      BCLog::OutError("BCModel::SetPriorGauss : Index out of range.");
-      return 0;
-   }
-
-   // create new function
-   TF1 * f = new TF1(Form("prior_%s", GetParameter(index)->GetName().c_str()),
-         BCMath::SplitGaussian,
-         GetParameter(index)->GetLowerLimit(),
-         GetParameter(index)->GetUpperLimit(),
-         3);
-   f->SetParameter(0, mean);
-   f->SetParameter(1, sigmadown);
-   f->SetParameter(2, sigmaup);
-
-   // set prior
-   return SetPrior(index, f);
-
-   return 0;
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorGauss(const char * name, double mean, double sigmadown, double sigmaup)
-{
-   // find index
-   int index = -1;
-   for (unsigned int i = 0; i < GetNParameters(); i++)
-      if (name == GetParameter(i)->GetName())
-         index = i;
-
-   // set prior
-   return SetPriorGauss(index, mean, sigmadown, sigmaup);
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPrior(int index, TH1 * h, bool interpolate)
-{
-   // check index range
-   if (index < 0 && index >= int(GetNParameters())) {
-      BCLog::OutError("BCModel::SetPrior : Index out of range.");
-      return 0;
-   }
-
-   // if the histogram exists
-   if(h) {
-
-      // check if histogram is 1d
-      if (h->GetDimension() != 1) {
-         BCLog::OutError(Form("BCModel::SetPrior : Histogram given for parameter %d is not 1D.",index));
-         return 0;
-      }
-
-      // normalize the histogram
-      h->Scale(1./h->Integral("width"));
-
-      if(fPriorContainer[index])
-         delete fPriorContainer[index];
-
-      // set function
-      fPriorContainer[index] = (TNamed*) h->Clone();
-
-      if (interpolate)
-         fPriorContainerInterpolate[index] = true;
-
-      fPriorContainerConstant[index] = false;
-   }
-
-   // no error
-   return 1;
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPrior(const char * name, TH1 * h, bool interpolate)
-{
-   // find index
-   int index = -1;
-   for (unsigned int i = 0; i < GetNParameters(); i++)
-      if (name == GetParameter(i)->GetName())
-         index = i;
-
-   // set prior
-   return SetPrior(index, h, interpolate);
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorConstant(int index)
-{
-   // check index range
-   if (index < 0 && index >= int(GetNParameters())) {
-      BCLog::OutError("BCModel::SetPriorConstant : Index out of range.");
-      return 0;
-   }
-
-   if(fPriorContainer[index]) {
-      delete fPriorContainer[index];
-      fPriorContainer[index] = 0;
-   }
-
-   // set prior to a constant
-   fPriorContainerConstant[index] = true;
-
-   // no error
-   return 1;
-}
-
-// ---------------------------------------------------------
-int BCModel::SetPriorConstantAll()
-{
-   if ( !fParameters.Size())
-      BCLog::OutWarning("BCModel::SetPriorConstantAll : No parameters defined.");
-
-   // loop over all 1-d priors
-   for (unsigned i = 0; i < fParameters.Size(); ++i) {
-      if (fPriorContainer[i]) {
-         delete fPriorContainer[i];
-         fPriorContainer[i]=0;
-      }
-      fPriorContainerConstant[i] = true;
-   }
-
-   // no error
-   return 1;
-}
-
-// ---------------------------------------------------------
-void BCModel::PrintSummary()
-{
-   // model summary
-   BCLog::OutSummary(Form("Model : %s", fName.data()));
-   BCLog::OutSummary(Form("Number of parameters : %u", GetNParameters()));
-   BCLog::OutSummary("Parameters:");
-
-   // parameter summary
-   for (unsigned i = 0; i < GetNParameters(); i++)
-      fParameters[i]->PrintSummary();
-
-   // best fit parameters
-   if ( !GetBestFitParameters().empty()) {
-     BCLog::OutSummary(Form("Log of the maximum posterior: %f", GetLogMaximum()));
-      BCLog::OutSummary("Best fit parameters:");
-
-      for (unsigned i = 0; i < GetNParameters(); i++) {
-        if ( fParameters[i]->Fixed() )
-          BCLog::OutSummary(Form(" %s = %f (fixed)", fParameters[i]->GetName().data(), GetBestFitParameter(i)));
-        else
-          BCLog::OutSummary(Form(" %s = %f (global)", fParameters[i]->GetName().data(), GetBestFitParameter(i)));
-
-        if ( fMarginalModes.size() == GetNParameters())
-          BCLog::OutSummary(Form(" %s = %f (marginalized)", fParameters[i]->GetName().data(), GetBestFitParametersMarginalized()[i]));
-
-      }
-   }
-
-   // model testing
-   if (fPValue >= 0) {
-      double likelihood = Likelihood(GetBestFitParameters());
-      BCLog::OutSummary(" Model testing:");
-      BCLog::OutSummary(Form("  p(data|lambda*) = %f", likelihood));
-      BCLog::OutSummary(Form("  p-value         = %f", fPValue));
-   }
-
-   // normalization
-   if (GetIntegral() > 0) {
-      BCLog::OutSummary(" Evidence:");
-      BCLog::OutSummary(Form(" - evidence : %f", GetIntegral()));
-   }
-}
-
-// ---------------------------------------------------------
-void BCModel::PrintResults(const char * file)
-{
-   // print summary of Markov Chain Monte Carlo
-
-   // open file
-   std::ofstream ofi(file);
-
-   // check if file is open
-   if (!ofi.is_open()) {
-      std::cerr << "Couldn't open file " << file << std::endl;
-      return;
-   }
-
-   // number of parameters and chains
-   unsigned npar = GetNParameters();
-   unsigned nchains = MCMCGetNChains();
-
-   // check convergence
-   bool flag_conv = MCMCGetNIterationsConvergenceGlobal() > 0;
-
-   ofi << std::endl
-         << " -----------------------------------------------------" << std::endl
-         << " Summary" << std::endl
-         << " -----------------------------------------------------" << std::endl
-         << std::endl;
-
-   ofi << " Model summary" << std::endl << " =============" << std::endl
-         << " Model: " << fName.data() << std::endl
-         << " Number of parameters: " << npar << std::endl
-         << " List of Parameters and ranges:" << std::endl;
-   for (unsigned i = 0; i < npar; ++i) {
-     ofi << "  (" << i << ") Parameter \""
-         << fParameters[i]->GetName() << "\"" << ": "
-         << "[" << fParameters[i]->GetLowerLimit() << ", "
-         << fParameters[i]->GetUpperLimit() << "]";
-     if (fParameters[i]->Fixed()) {
-       ofi << " (fixed)";
-     }
-     ofi << std::endl;
-   }
-   ofi << std::endl;
-
-   ofi << " Results of the optimization" << std::endl
-         << " ===========================" << std::endl
-         << " Optimization algorithm used: "
-         << DumpUsedOptimizationMethod()<< std::endl;
-
-   if ( ! GetBestFitParameters().empty()) {
-     ofi << " Log of the maximum posterior: " << GetLogMaximum() << std::endl;
-      ofi << " List of parameters and global mode:" << std::endl;
-      for (unsigned i = 0; i < npar; ++i) {
-        ofi << "  (" << i << ") Parameter \""
-            << fParameters[i]->GetName() << "\": "
-            << GetBestFitParameter(i);
-        if (fParameters[i]->Fixed()) {
-          ofi << " (fixed)";
-        }
-        else if (GetBestFitParameterErrors().size() == npar) {
-          if(GetBestFitParameterError(i) >= 0.)
-            ofi << " +- " << GetBestFitParameterError(i);
-          else
-            ofi << " (no error estimate available) ";
-        }
-        else {
-          ofi << " (no error estimate available) ";
-        }
-        ofi << std::endl;
-      }
-      ofi << std::endl;
-   }
-   else {
-      ofi << " No best fit information available." << std::endl;
-      ofi << std::endl;
-   }
-
-   if (fPValue >= 0.) {
-      ofi << " Results of the model test" << std::endl
-            << " =========================" << std::endl
-            << " p-value: " << fPValue << std::endl;
-      if (fPValueNDoF >= 0)
-         ofi << " p-value corrected for degrees of freedom: " << fPValueNDoF << std::endl;
-
-      ofi << std::endl;
-   }
-
-   if (GetIntegral() >= 0.) {
-      ofi << " Results of the integration" << std::endl
-            << " ============================" << std::endl
-            << " Integration method used: "
-            << DumpUsedIntegrationMethod() << std::endl;
-      ofi << " Evidence: " << GetIntegral();
-      if (GetError() >= 0)
-        ofi << " +- " << GetError() << std::endl;
-      else
-        ofi << " (no error estimate available) " << std::endl;
-      ofi << std::endl;
-   }
-
-   // give warning if MCMC did not converge
-   if (!flag_conv && fMCMCFlagRun)
-      ofi << " WARNING: the Markov Chain did not converge!" << std::endl
-      << " Be cautious using the following results!" << std::endl
-      << std::endl;
-
-   // print results of marginalization (if MCMC was run)
-   if (fFlagMarginalized) {
-      ofi << " Results of the marginalization" << std::endl
-          << " ==============================" << std::endl
-          << " Marginalization algorithm used: "
-          << DumpUsedMarginalizationMethod() << std::endl
-          << " List of parameters and properties of the marginalized"
-          << std::endl << " distributions:" << std::endl;
-      for (unsigned i = 0; i < npar; ++i) {
-         if ( ! fParameters[i]->FillHistograms())
-            continue;
-
-         // get marginalized histogram
-         BCH1D * bch1d = GetMarginalized(fParameters[i]);
-
-         ofi << "  (" << i << ") Parameter \""
-             << fParameters[i]->GetName() << "\":";
-
-         if (!bch1d) {
-            ofi << " fixed (or histogram does not exist) " << std::endl;
-            continue;
-         }
-         else
-            ofi << std::endl;
-
-         ofi << "      Mean +- sqrt(V):                " << std::setprecision(4)
-             << bch1d->GetMean() << " +- " << std::setprecision(4)
-             << bch1d->GetRMS() << std::endl
-
-             << "      Median +- central 68% interval: "
-             << std::setprecision(4) << bch1d->GetMedian() << " +  "
-             << std::setprecision(4) << bch1d->GetQuantile(0.84) - bch1d->GetMedian()
-             << " - " << std::setprecision(4)
-             << bch1d->GetMedian() - bch1d->GetQuantile(0.16) << std::endl
-
-             << "      (Marginalized) mode:            " << bch1d->GetMode() << std::endl;
-
-         ofi << "       5% quantile:                   " << std::setprecision(4)
-             << bch1d->GetQuantile(0.05) << std::endl
-             << "      10% quantile:                   " << std::setprecision(4)
-             << bch1d->GetQuantile(0.10) << std::endl
-             << "      16% quantile:                   " << std::setprecision(4)
-             << bch1d->GetQuantile(0.16) << std::endl
-             << "      84% quantile:                   " << std::setprecision(4)
-             << bch1d->GetQuantile(0.85) << std::endl
-             << "      90% quantile:                   " << std::setprecision(4)
-             << bch1d->GetQuantile(0.90) << std::endl
-             << "      95% quantile:                   " << std::setprecision(4)
-             << bch1d->GetQuantile(0.95) << std::endl;
-
-         std::vector<double> v;
-         v = bch1d->GetSmallestIntervals(0.68);
-         ofi << "      Smallest interval(s) containing at least 68% and local mode(s):"
-             << std::endl;
-         for (unsigned j = 0; j < v.size(); j += 5)
-            ofi << "       (" << v[j] << ", " << v[j + 1]
-                << ") (local mode at " << v[j + 3] << " with rel. height "
-                << v[j + 2] << "; rel. area " << v[j + 4] << ")"
-                << std::endl;
-         ofi << std::endl;
-      }
-   }
-   if (fMCMCFlagRun) {
-      ofi << " Status of the MCMC" << std::endl << " ==================" << std::endl
-          << " Convergence reached:                    " << (flag_conv ? "yes" : "no")
-          << std::endl;
-
-      if (flag_conv)
-         ofi << " Number of iterations until convergence: "
-             << MCMCGetNIterationsConvergenceGlobal() << std::endl;
-      else
-         ofi << " WARNING: the Markov Chain did not converge! Be\n"
-             << " cautious using the following results!" << std::endl
-             << std::endl;
-      ofi << " Number of chains:                       " << MCMCGetNChains() << std::endl
-          << " Number of iterations per chain:         " << MCMCGetNIterationsRun() << std::endl
-          << " Average pre-run efficiencies:" << std::endl;
-
-      std::vector<double> efficiencies;
-      efficiencies.assign(npar, 0.);
-
-      for (unsigned ipar = 0; ipar < npar; ++ipar)
-        for (unsigned ichain = 0; ichain < nchains; ++ichain) {
-          efficiencies[ipar] +=
-            fMCMCEfficiencies[ichain*npar+ipar] / double(nchains) * 100.;
-         }
-
-      for (unsigned ipar = 0; ipar < npar; ++ipar)
-         ofi << "  (" << ipar << ") Parameter \""
-             << fParameters[ipar]->GetName().data() << "\": "
-             << efficiencies.at(ipar) << "%" << std::endl;
-      ofi << std::endl;
-   }
-
-   ofi << " -----------------------------------------------------" << std::endl
-       << " Notation:" << std::endl
-       << " Mean        : mean value of the marg. pdf" << std::endl
-       << " Median      : median of the marg. pdf" << std::endl
-       << " Marg. mode  : most probable value of the marg. pdf" << std::endl
-       << " V           : Variance of the marg. pdf" << std::endl
-       << " Quantiles   : most commonly used quantiles" <<std::endl
-       << " -----------------------------------------------------" << std::endl
-       << std::endl;
-
-   // close file
-   ofi.close();
-}
-
-// ---------------------------------------------------------
-void BCModel::PrintShortFitSummary(int chi2flag)
-{
-   BCLog::OutSummary("---------------------------------------------------");
-   BCLog::OutSummary(Form("Fit summary for model \'%s\':", GetName().data()));
-   BCLog::OutSummary(Form("   Number of parameters:  Npar  = %i", GetNParameters()));
-   if (GetNDataPoints()) {
-      BCLog::OutSummary(Form("   Number of data points: Ndata = %i", GetNDataPoints()));
-      BCLog::OutSummary("   Number of degrees of freedom:");
-      BCLog::OutSummary(Form("      NDoF = Ndata - Npar = %i", GetNDataPoints() - GetNParameters()));
-   }
-   if (!GetBestFitParameters().empty())
-      BCLog::OutSummary("   Best fit parameters (global):");
-   for (unsigned int i = 0; i < GetNParameters(); ++i)
-      BCLog::OutSummary(Form("      %s = %.3g", GetParameter(i)->GetName().data(), GetBestFitParameter(i)));
-
-   if (GetPValue() >= 0) {
-      BCLog::OutSummary("   Goodness-of-fit test:");
-      BCLog::OutSummary(Form("      p-value = %.3g", GetPValue()));
-      if (chi2flag) {
-         BCLog::OutSummary(Form("      p-value corrected for NDoF = %.3g", GetPValueNDoF()));
-         BCLog::OutSummary(Form("      chi2 / NDoF = %.3g", GetChi2NDoF()));
-      }
-   }
-   BCLog::OutSummary("---------------------------------------------------");
+    BCLog::OutSummary("---------------------------------------------------");
+    BCLog::OutSummary(Form("Fit summary for model \'%s\':", GetName().data()));
+    BCLog::OutSummary(Form("   Number of parameters:  Npar  = %i", GetNParameters()));
+    if (GetNDataPoints()) {
+        BCLog::OutSummary(Form("   Number of data points: Ndata = %i", GetNDataPoints()));
+        BCLog::OutSummary(Form("   Number of degrees of freedom = %i", GetNDoF()));
+    }
+    if (!GetBestFitParameters().empty())
+        BCLog::OutSummary("   Best fit parameters (global):");
+    PrintParameters(GetBestFitParameters(), BCLog::OutSummary);
+
+    BCLog::OutSummary("---------------------------------------------------");
 }
 
 // ---------------------------------------------------------
 void BCModel::PrintHessianMatrix(std::vector<double> parameters)
 {
-   // check number of entries in vector
-   if (parameters.size() != GetNParameters()) {
-      BCLog::OutError("BCModel::PrintHessianMatrix : Invalid number of entries in the vector");
-      return;
-   }
+    // check number of entries in vector
+    if (parameters.size() != GetNParameters()) {
+        BCLog::OutError("BCModel::PrintHessianMatrix : Invalid number of entries in the vector");
+        return;
+    }
 
-   // print to screen
-   BCLog::OutSummary("Hessian matrix elements: ");
-   BCLog::OutSummary("Parameter values:");
+    // print to screen
+    BCLog::OutSummary("Hessian matrix elements: ");
+    BCLog::OutSummary("Parameter values:");
 
-   for (int i = 0; i < int(parameters.size()); i++)
-      BCLog::OutSummary(Form("Parameter %d : %f", i, parameters.at(i)));
+    for (unsigned i = 0; i < parameters.size(); ++i)
+        BCLog::OutSummary(Form("Parameter %d : %f", i, parameters.at(i)));
 
-   BCLog::OutSummary("Hessian matrix:");
-   // loop over all parameter pairs
-   for (unsigned int i = 0; i < GetNParameters(); i++)
-      for (unsigned int j = 0; j < i; j++) {
-         // calculate Hessian matrix element
-         double hessianmatrixelement = HessianMatrixElement(
-               fParameters[i], fParameters[j], parameters);
+    BCLog::OutSummary("Hessian matrix:");
+    // loop over all parameter pairs
+    for (unsigned int i = 0; i < GetNParameters(); i++)
+        for (unsigned int j = 0; j < i; j++) {
+            // calculate Hessian matrix element
+            double hessianmatrixelement = HessianMatrixElement(i, j, parameters);
 
-         // print to screen
-         BCLog::OutSummary(Form("%d %d : %f", i, j, hessianmatrixelement));
-      }
+            // print to screen
+            BCLog::OutSummary(Form("%d %d : %f", i, j, hessianmatrixelement));
+        }
 }
 
 // ---------------------------------------------------------
-BCDataPoint * BCModel::VectorToDataPoint(const std::vector<double> &data)
+BCPriorModel* BCModel::GetPriorModel(bool prepare, bool call_likelihood)
 {
-   BCDataPoint * datapoint = new BCDataPoint(data.size());
-   datapoint->SetValues(data);
-   return datapoint;
+    if (!fPriorModel)
+        fPriorModel = new BCPriorModel(*this, call_likelihood);
+    else if (prepare)
+        fPriorModel->PreparePriorModel();
+    fPriorModel->SetCallLikelihood(call_likelihood);
+    return fPriorModel;
 }
 
 // ---------------------------------------------------------
-int BCModel::CompareStrings(const char * string1, const char * string2)
+BCH1D BCModel::GetPrior(unsigned index)
 {
-   int flag_same = 0;
+    BCH1D prior;
 
-   if (strlen(string1) != strlen(string2))
-      return -1;
+    if (index > GetNVariables())
+        return prior;
 
-   for (int i = 0; i < int(strlen(string1)); i++)
-      if (string1[i] != string2[i])
-         flag_same = -1;
+    if (index < GetNParameters() && GetParameter(index).Fixed())
+        return prior;
 
-   return flag_same;
+    // check for factorized prior
+    if (fFactorizedPrior && index < GetNParameters() && GetParameter(index).GetPrior() != NULL) {
+        TH1* h = GetVariable(index).CreateH1("getprior1d_temp");
+        prior = GetParameter(index).GetPrior()->GetBCH1D(h, Form("%s_%d_prior", GetSafeName().data(), index));
+        delete h;
+
+        if (prior.Valid()) {
+            // correct for flat prior
+            bool const_prior = (dynamic_cast<BCConstantPrior*>(GetParameter(index).GetPrior()) != NULL);
+            if (const_prior) {
+                prior.SetLocalMode((unsigned)0, GetParameter(index).GetRangeCenter());
+                prior.SetNBands(0);
+            }
+        }
+    }
+
+    // else use marginalized prior, if it exists
+    if (!prior.Valid() && fPriorModel->MarginalizedHistogramExists(index))
+        prior = fPriorModel->GetMarginalized(index);
+
+    if (prior.Valid())
+        prior.GetHistogram()->SetTitle(Form("prior;%s;P(%s)", GetVariable(index).GetLatexNameWithUnits().data(), GetVariable(index).GetLatexName().data()));
+
+    return prior;
+}
+
+// ---------------------------------------------------------
+BCH2D BCModel::GetPrior(unsigned index1, unsigned index2)
+{
+    BCH2D prior;
+
+    if (index1 > GetNVariables() || index2 > GetNVariables())
+        return prior;
+
+    if (index1 < GetNParameters() && GetParameter(index1).Fixed())
+        return prior;
+
+    if (index2 < GetNParameters() && GetParameter(index2).Fixed())
+        return prior;
+
+    std::string title = "prior";
+
+    // check for factorized priors
+    if (fFactorizedPrior &&
+            index1 < GetNParameters() && GetParameter(index1).GetPrior() != NULL &&
+            index2 < GetNParameters() && GetParameter(index2).GetPrior() != NULL) {
+
+        TH2* h2 = fPriorModel->GetVariable(index1).CreateH2("getprior2d_temp", fPriorModel->GetVariable(index2));
+        prior = GetParameter(index1).GetPrior()->GetBCH2D(GetParameter(index2).GetPrior(), h2, Form("h2d_prior_%s_%d_%d", GetName().data(), index1, index2));
+        delete h2;
+
+        if (prior.Valid()) {
+            // correct for flat prior
+            bool const_prior1 = (dynamic_cast<BCConstantPrior*>(GetParameter(index1).GetPrior()) != NULL);
+            bool const_prior2 = (dynamic_cast<BCConstantPrior*>(GetParameter(index2).GetPrior()) != NULL);
+            if (const_prior1)
+                prior.SetLocalMode((unsigned)0, GetParameter(index1).GetRangeCenter());
+            if (const_prior2)
+                prior.SetLocalMode((unsigned)1, GetParameter(index2).GetRangeCenter());
+            if (const_prior1 && !const_prior2)
+                title += " (flat in " + fPriorModel->GetVariable(index1).GetLatexName() + ")";
+            else if (!const_prior1 && const_prior2)
+                title += " (flat in " + fPriorModel->GetVariable(index2).GetLatexName() + ")";
+            else if (const_prior1 && const_prior2) {
+                title += " (both flat)";
+                prior.SetNBands(0);
+            }
+        }
+    }
+
+    // else use marginalized prior, if it exists
+    if (!prior.Valid() && (fPriorModel->MarginalizedHistogramExists(index1, index2) || fPriorModel->MarginalizedHistogramExists(index2, index1)))
+        prior = fPriorModel->GetMarginalized(index1, index2);
+
+    if (prior.Valid())
+        prior.GetHistogram()->SetTitle(Form("%s;%s;%s;P(%s, %s)",
+                                            title.data(),
+                                            GetVariable(index1).GetLatexNameWithUnits().data(),
+                                            GetVariable(index2).GetLatexNameWithUnits().data(),
+                                            GetVariable(index1).GetLatexName().data(), GetVariable(index2).GetLatexName().data()));
+
+    return prior;
+}
+
+// ---------------------------------------------------------
+unsigned BCModel::PrintKnowledgeUpdatePlots(const std::string& filename, unsigned hdiv, unsigned vdiv, bool call_likelihood)
+{
+    if (GetNVariables() == 0) {
+        BCLog::OutError("BCModel::PrintKnowledgeUpdatePlots : No variables defined!");
+        return 0;
+    }
+
+    // prepare prior
+    if (!GetPriorModel(true, call_likelihood) || fPriorModel->GetNParameters() == 0 )
+        return 0;
+
+    std::string newFilename(filename);
+    BCAux::DefaultToPDF(newFilename);
+    if (newFilename.empty())
+        return 0;
+
+    // call prior evalution once to set fFactorizedPrior:
+    LogAPrioriProbability(std::vector<double>(GetNParameters(), 0));
+
+    if (!fFactorizedPrior || !GetParameters().ArePriorsSet(true) || GetNObservables() > 0) {
+        BCLog::OutSummary("Marginalizing prior...");
+        fPriorModel->MarginalizeAll();
+    }
+    fPriorModel->FindMode();
+
+    // Find nonempty 1D prior--posterior pairs
+    std::vector<unsigned> H1Indices = GetH1DPrintOrder();
+    std::vector<std::pair<BCH1D, BCH1D> > h1;
+    h1.reserve(H1Indices.size());
+    for (unsigned i = 0; i < H1Indices.size(); ++i) {
+        BCH1D prior = GetPrior(H1Indices[i]);
+        if (!prior.Valid())
+            continue;
+        BCH1D posterior = GetMarginalized(H1Indices[i]);
+        if (!posterior.Valid())
+            continue;
+        posterior.GetHistogram()->SetTitle("posterior");
+        if (prior.GetNBands() == 0) {
+            prior.CopyOptions(fBCH1DPriorDrawingOptions);
+            prior.SetNBands(0);
+        } else
+            prior.CopyOptions(fBCH1DPriorDrawingOptions);
+        posterior.CopyOptions(fBCH1DPosteriorDrawingOptions);
+        h1.push_back(std::make_pair(prior, posterior));
+    }
+
+    // Find nonempty 2D prior--posterior pairs
+    std::vector<std::pair<unsigned, unsigned> > H2Coords = GetH2DPrintOrder();
+    std::vector<std::pair<BCH2D, BCH2D> > h2;
+    h2.reserve(H2Coords.size());
+    for (unsigned i = 0; i < H2Coords.size(); ++i) {
+        BCH2D prior = GetPrior(H2Coords[i].first, H2Coords[i].second);
+        if (!prior.Valid())
+            continue;
+        BCH2D posterior = GetMarginalized(H2Coords[i].first, H2Coords[i].second);
+        if (!posterior.Valid())
+            continue;
+        posterior.GetHistogram()->SetTitle("posterior");
+        if (prior.GetNBands() == 0) {
+            prior.CopyOptions(fBCH2DPriorDrawingOptions);
+            prior.SetNBands(0);
+        } else
+            prior.CopyOptions(fBCH2DPriorDrawingOptions);
+        posterior.CopyOptions(fBCH2DPosteriorDrawingOptions);
+        h2.push_back(std::make_pair(prior, posterior));
+    }
+
+    if (h1.empty() && h2.empty()) {
+        BCLog::OutWarning("BCModel::PrintKnowledgeUpdatePlots : No update plots to print.");
+        return 0;
+    }
+
+    const unsigned nplots = h1.size() + h2.size();
+    BCLog::OutSummary(Form("Printing knowledge update plots (%lu x 1D + %lu x 2D = %u) into file %s", h1.size(), h2.size(), nplots, newFilename.data()));
+    if (nplots > 100)
+        BCLog::OutDetail("This can take a while...");
+
+    if (hdiv < 1) hdiv = 1;
+    if (vdiv < 1) vdiv = 1;
+
+    int c_width  = 297 * 4;
+    int c_height = 210 * 4;
+    if (hdiv < vdiv)
+        std::swap(c_width, c_height);
+
+    // create canvas and prepare postscript
+    TCanvas c("c", "canvas", c_width, c_height);
+    c.Divide(hdiv, vdiv);
+
+    unsigned n = 0;
+
+    // open file
+    c.Print((newFilename + "[").data());
+
+    // Draw 1D Knowledge Update Plots
+    for (unsigned i = 0; i < h1.size(); ++i) {
+        // if current page is full, switch to new page
+        if (i != 0 && i % (hdiv * vdiv) == 0) {
+            c.Print(newFilename.c_str());
+            c.Clear("D");
+        }
+
+        // go to next pad
+        c.cd(i % (hdiv * vdiv) + 1)->ResetAttPad();
+
+        BCAux::DrawKnowledgeUpdate(h1[i].first, h1[i].second, fDrawPriorFirst);
+
+        if (++n % 100 == 0)
+            BCLog::OutDetail(Form(" --> %d plots done", n));
+    }
+    if (h1.size() > 0) {
+        c.Print(newFilename.c_str());
+        c.Clear("D");
+    }
+
+    // Draw 2D Knowledge Update Plots
+    for (unsigned i = 0; i < h2.size(); ++i) {
+        // if current page is full, switch to new page
+        if (i != 0 && i % (hdiv * vdiv) == 0) {
+            c.Print(newFilename.c_str());
+            c.Clear("D");
+        }
+
+        // go to next pad
+        c.cd(i % (hdiv * vdiv) + 1)->ResetAttPad();
+
+        // prior text?
+        BCAux::DrawKnowledgeUpdate(h2[i].first, h2[i].second, fDrawPriorFirst);
+
+        if (++n % 100 == 0)
+            BCLog::OutDetail(Form(" --> %d plots done", n));
+    }
+    if (h2.size() > 0) {
+        c.Print(newFilename.c_str());
+        c.Clear("D");
+    }
+    c.Print(std::string(newFilename + "]").c_str());
+
+    if (nplots > 100 && nplots % 100 != 0)
+        BCLog::OutDetail(Form(" --> %d plots done", nplots));
+
+    // return total number of drawn histograms
+    return nplots;
+
+}
+
+// ---------------------------------------------------------
+void BCModel::SetKnowledgeUpdateDrawingStyle(BCAux::BCKnowledgeUpdateDrawingStyle style)
+{
+    BCAux::SetKnowledgeUpdateDrawingStyle(fBCH1DPriorDrawingOptions, fBCH1DPosteriorDrawingOptions, style);
+    BCAux::SetKnowledgeUpdateDrawingStyle(fBCH2DPriorDrawingOptions, fBCH2DPosteriorDrawingOptions, style);
+
+    switch (style) {
+
+        case BCAux::kKnowledgeUpdateDetailedPosterior:
+            SetDrawPriorFirst(false);
+            break;
+
+        case BCAux::kKnowledgeUpdateDetailedPrior:
+            SetDrawPriorFirst(true);
+            break;
+
+        case BCAux::kKnowledgeUpdateDefaultStyle:
+        default:
+            break;
+    }
 }

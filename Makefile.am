@@ -3,7 +3,8 @@ ACLOCAL  = aclocal
 AUTOMAKE = automake
 
 clean-local:
-	rm -rf autom4te.cache
+	-rm -rf autom4te.cache
+	-rm -rf external/cuba-*
 
 # files build by configure on the user side
 DISTCLEANFILES = \
@@ -15,13 +16,12 @@ SUBDIRS= \
 	src \
 	models/base \
 	models/mtf \
-	models/mvc \
-	test
+	test \
+	examples
 
 EXTRA_DIST= \
 	INSTALL.md \
 	README.md \
-	readme.devel \
 	models/base/LDef.h  \
 	models/base/LDef_roostats.h \
 	doc/COPYING doc/CREDITS doc/LICENSE doc/ChangeLog doc/releasenotes.md \
@@ -94,3 +94,10 @@ install-data-hook:
 	@echo
 	@echo "   ============================================================"
 	@echo
+
+# format all C++ source files. Exclude certain files for which astyle
+# doesn't work.
+.PHONY: format
+format:
+	cd $(top_srcdir) && \
+	astyle --options=tools/astylerc --formatted `find BAT/ benchmarks/ examples/ tools $(SUBDIRS) -name '*.C' -o -name '*.cxx' -o -name '*.h' | egrep -v -f tools/astyle-ignore`

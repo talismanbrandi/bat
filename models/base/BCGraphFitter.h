@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -23,145 +23,82 @@
 
 // ---------------------------------------------------------
 
-#include <vector>
-
 #include "BCFitter.h"
 
-class TGraphErrors;
-class TF1;
+#include <TGraphErrors.h>
+
+#include <string>
+#include <vector>
 
 // ---------------------------------------------------------
 
 class BCGraphFitter : public BCFitter
 {
-   public:
+public:
 
-      /** \name Constructors and destructors */
-      /* @{ */
+    /** \name Constructors and destructors */
+    /* @{ */
+    /**
+     * Constructor
+     * @param graph pointer to TGraphErrors
+     * @param func pointer to TF1
+     * @param name name of the model */
+    BCGraphFitter(const TGraphErrors& graph, const TF1& func, const std::string& name = "graph_fitter_model");
 
-      /**
-       * Default constructor */
-      BCGraphFitter();
+    /**
+     * The default destructor. */
+    virtual ~BCGraphFitter();
 
-      /**
-       * Constructor
-       * @param name name of the model */
-      BCGraphFitter(const char * name);
+    /* @} */
 
-      /**
-       * Constructor
-       * @param graph pointer to TGraphErrors
-       * @param func pointer to TF1 */
-      BCGraphFitter(TGraphErrors * graph, TF1 * func);
+    /** \name Member functions (get) */
+    /* @{ */
 
-      /**
-       * Constructor
-       * @param name name of the model
-       * @param graph pointer to TGraphErrors
-       * @param func pointer to TF1 */
-      BCGraphFitter(const char * name, TGraphErrors * graph, TF1 * func);
+    /**
+     * @return pointer to TGraph */
+    const TGraph& GetGraph()
+    { return fGraph; };
 
-      /**
-       * The default destructor. */
-      ~BCGraphFitter();
+    /* @} */
 
-      /* @} */
+    /** \name Member functions (miscellaneous methods) */
+    /* @{ */
 
-      /** \name Member functions (get) */
-      /* @{ */
+    /**
+     * The log of the conditional probability.
+     * @param parameters vector containing the parameter values */
+    virtual double LogLikelihood(const std::vector<double>& parameters);
 
-      /**
-       * @return pointer to TGraphErrors */
-      TGraphErrors * GetGraph()
-         { return fGraph; };
+    /**
+     * Performs the fit. The graph and the function has to be set beforehand.
+     * @return Success of action. */
+    void Fit();
 
-      /**
-       * @return pointer to TF1 */
-      TF1 * GetFitFunction()
-         { return fFitFunction; };
+    /**
+     * Draw the fit in the current pad. */
+    void DrawFit(const std::string& options = "", bool flaglegend = false);
 
-      /**
-       * @return pointer to the error band */
-      TGraph * GetErrorBand()
-         { return fErrorBand; };
+    /**
+     * Calculate chi^2, the sum of [(y-f(x))/sigma_y]^2 for all data points.
+     * @param pars Parameter set to evaluate function values with.
+     * @return chi^2 evalued with pars. */
+    virtual double CalculateChi2(const std::vector<double>& pars);
 
-      /**
-       * @return pointer to a graph for the fit function */
-      TGraph * GetGraphFitFunction()
-         { return fGraphFitFunction; };
+    /**
+     * Calculate p value from chi^2 distribution,
+     * with assumption of Gaussian distribution for all data points.
+     * @param pars Parameter set to calculate p value of.
+     * @param ndf Flag for choosing to include numbers of degrees of freedom.
+     * @return p value if successful, negative is unsuccessful. */
+    virtual double CalculatePValue(const std::vector<double>& pars, bool ndf = true);
 
-      /* @} */
+    /* @} */
 
-      /** \name Member functions (set) */
-      /* @{ */
+private:
 
-      /**
-       * @param graph pointer to TGraphErrors object */
-      int SetGraph(TGraphErrors * graph);
-
-      /**
-       * @param func pointer to TF1 object */
-      int SetFitFunction(TF1 * func);
-
-      /* @} */
-      /** \name Member functions (miscellaneous methods) */
-      /* @{ */
-
-      /**
-       * The log of the prior probability. It is set to be flat in all parameters.
-       * @param parameters vector containing the parameter values */
-//      double LogAPrioriProbability(const std::vector<double> & parameters);
-
-      /**
-       * The log of the conditional probability.
-       * @param parameters vector containing the parameter values */
-      double LogLikelihood(const std::vector<double> & parameters);
-
-      /**
-       * Returns the value of the 1D fit function for a given set of parameters
-       * at a given x.
-       * @param x point to calculate the function value at
-       * @param parameters parameters of the function */
-      double FitFunction(const std::vector<double> & x, const std::vector<double> & parameters);
-
-      /**
-       * Performs the fit. The graph and the function has to be set beforehand.
-       * @return An error code. */
-      int Fit();
-
-      /**
-       * Performs the fit of the graph with the function.
-       * @param graph pointer to TGraphErrors object
-       * @param func pointer to TF1 object
-       * @return An error code. */
-      int Fit(TGraphErrors * graph, TF1 * func);
-
-      /**
-       * Draw the fit in the current pad. */
-      void DrawFit(const char * options = "", bool flaglegend = false);
-
-       virtual double CDF(const std::vector<double>& parameters,  int index, bool lower=false);
-
-      /* @} */
-
-   private:
-
-      /**
-       * The graph containing the data. */
-      TGraphErrors * fGraph;
-
-      /**
-       * The fit function */
-      TF1 * fFitFunction;
-
-      /**
-       * Pointer to the error band (for legend) */
-      TGraph * fErrorBand;
-
-      /**
-       * Pointer to a graph for displaying the fit function */
-      TGraph * fGraphFitFunction;
-
+    /**
+     * The graph containing the data. */
+    TGraphErrors fGraph;
 };
 
 // ---------------------------------------------------------

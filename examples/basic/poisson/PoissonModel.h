@@ -3,30 +3,30 @@
 
 #include <BAT/BCModel.h>
 
-// ---------------------------------------------------------
+#include <string>
+
 class PoissonModel : public BCModel
 {
-   public:
+public:
 
-      // Constructors and destructor
-      PoissonModel(const char * name = "");
-      ~PoissonModel();
+    PoissonModel(const std::string& name);
 
-      // set number of observed events
-      void SetNObs(unsigned nobs);
+    ~PoissonModel()
+    { /* empty desctructor */ }
 
-      // get number of observed events
-      unsigned GetNObs() const
-         { return fNObs; };
+    // set number of observed events
+    void SetNObs(unsigned nobs);
 
-      // Methods to overload, see file PoissonModel.cxx
-      void DefineParameters();
-      double LogAPrioriProbability(const std::vector<double> & parameters);
-      double LogLikelihood(const std::vector<double> & parameters);
+    // get number of observed events
+    unsigned GetNObs() const
+    { return fNObs; }
 
-   private:
-      // number of observed events
-      unsigned fNObs;
+    double LogLikelihood(const std::vector<double>& parameters);
+
+private:
+
+    // number of observed events
+    unsigned fNObs;
 };
 // ---------------------------------------------------------
 

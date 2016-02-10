@@ -1,72 +1,58 @@
 // ***************************************************************
-// This file was created using the |:PROGRAM:| script
-// for project |:Project:|.
-// |:PROGRAM:| is part of Bayesian Analysis Toolkit (BAT).
+// This file was created using the ((PROGRAM)) script
+// for project ((PROJECT)).
+// ((PROGRAM)) is part of Bayesian Analysis Toolkit (BAT).
 // BAT can be downloaded from http://mpp.mpg.de/bat
 // ***************************************************************
 
 #include <BAT/BCLog.h>
 #include <BAT/BCAux.h>
-#include <BAT/BCSummaryTool.h>
 
-#include "|:Model:|.h"
+#include "((MODEL)).h"
 
 int main()
 {
-	// set nicer style for drawing than the ROOT default
-	BCAux::SetStyle();
+    // set nicer style for drawing than the ROOT default
+    BCAux::SetStyle();
 
-	// open log file
-	BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
+    // open log file
+    BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
 
-	// create new |:Model:| object
-	|:Model:|* m = new |:Model:|("|:Model:|");
+    // create new ((MODEL)) object
+    ((MODEL)) m("Name_Me");
 
-	// set precision
-	m -> MCMCSetPrecision(BCEngineMCMC::kMedium);
+    // set precision
+    m.SetPrecision(BCEngineMCMC::kMedium);
 
-	BCLog::OutSummary("Test model created");
+    BCLog::OutSummary("Test model created");
 
-	//////////////////////////////
-	// perform your analysis here
+    //////////////////////////////
+    // perform your analysis here
 
-	// normalize the posterior, i.e. integrate posterior over the full
-	// parameter space
-	// m -> SetIntegrationMethod(BCIntegrate::kIntDefault);
-	// m -> Normalize();
+    // Normalize the posterior by integrating it over the full par. space
+    // m.Normalize();
 
-	// run MCMC and marginalize posterior w/r/t all parameters and all
-	// combinations of two parameters
-	// m -> MarginalizeAll(BCIntegrate::kMargMetropolis);
+    // run MCMC, marginalizing posterior
+    m.MarginalizeAll(BCIntegrate::kMargMetropolis);
 
-	// run mode finding; by default using Minuit
-	// m -> FindMode( m->GetBestFitParameters() );
+    // run mode finding; by default using Minuit
+    m.FindMode(m.GetBestFitParameters());
 
-	// draw all marginalized distributions into a PDF file
-	// m -> PrintAllMarginalized("|:Model:|_plots.pdf");
+    // draw all marginalized distributions into a PDF file
+    m.PrintAllMarginalized(m.GetSafeName() + "_plots.pdf");
 
-	// print all summary plots
-	// m -> PrintParameterPlot("|:Model:|_parameters.pdf");
-	// m -> PrintCorrelationPlot("|:Model:|_correlation.pdf");
-	// m -> PrintCorrelationMaxtrix("|:Model:|_correlationMatrix.pdf");
+    // print summary plots
+    // m.PrintParameterPlot(m.GetSafeName() + "_parameters.pdf");
+    // m.PrintCorrelationPlot(m.GetSafeName() + "_correlation.pdf");
+    // m.PrintCorrelationMatrix(m.GetSafeName() + "_correlationMatrix.pdf");
+    // m.PrintKnowledgeUpdatePlots(m.GetSafeName() + "_update.pdf");
 
-	// create a new summary tool object, to print change from prior -> posterior
-	// BCSummaryTool * summary = new BCSummaryTool(m);
-	// summary -> PrintKnowledgeUpdatePlots("|:Model:|_update.pdf");
+    // print results of the analysis into a text file
+    m.PrintSummary();
 
-	// calculate p-value
-	// m -> CalculatePValue( m->GetBestFitParameters() );
+    // close log file
+    BCLog::OutSummary("Exiting");
+    BCLog::CloseLog();
 
-	// print results of the analysis into a text file
-	//  m -> PrintResults("|:Model:|_results.txt");
-
-	delete m;
-	// delete summary;
-
-	BCLog::OutSummary("Exiting");
-
-	// close log file
-	BCLog::CloseLog();
-
-	return 0;
+    return 0;
 }

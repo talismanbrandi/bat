@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -13,18 +13,12 @@
 #include "BCMTFSystematicVariation.h"
 
 // ---------------------------------------------------------
-BCMTFSystematicVariation::BCMTFSystematicVariation(const char * channelname, const char * systematicname, int nprocesses)
+BCMTFSystematicVariation::BCMTFSystematicVariation(int nprocesses)
+    : fHistogramUpContainer(nprocesses, (TH1D*)0),
+      fHistogramDownContainer(nprocesses, (TH1D*)0)
 {
-   fChannelName = channelname;
-   fSystematicName = systematicname;
-   for (int i = 0; i < nprocesses; ++i) {
-      fHistogramUpContainer.push_back(0);
-      fHistogramDownContainer.push_back(0);
-   }
 }
 
 // ---------------------------------------------------------
 BCMTFSystematicVariation::~BCMTFSystematicVariation()
 {}
-
-// ---------------------------------------------------------

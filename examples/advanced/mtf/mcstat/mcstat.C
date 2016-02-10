@@ -32,10 +32,13 @@
 #if defined(__MAKECINT__) || defined(__ROOTCLING__) || COMPILER
 
 #include <BAT/BCAux.h>
+#include <BAT/BCEngineMCMC.h>
+#include <BAT/BCGaussianPrior.h>
 #include <BAT/BCLog.h>
 #include <BAT/BCMTF.h>
 #include <BAT/BCMTFAnalysisFacility.h>
 #include <BAT/BCMTFChannel.h>
+#include <BAT/BCParameter.h>
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -48,90 +51,97 @@
 
 void mcstat()
 {
-   // ---- set style and open log files ---- //
+    // ---- set style and open log files ---- //
 
-   // open log file
-   BCLog::OpenLog("log.txt");
-   BCLog::SetLogLevel(BCLog::detail);
+    // open log file
+    BCLog::OpenLog("log.txt");
+    BCLog::SetLogLevel(BCLog::detail);
 
-   // set nicer style for drawing than the ROOT default
-   BCAux::SetStyle();
+    // set nicer style for drawing than the ROOT default
+    BCAux::SetStyle();
 
-   // ---- read histograms from a file ---- //
+    // ---- read histograms from a file ---- //
 
-   // open file
-   std::string fname = "templates.root";
-   TFile * file = TFile::Open(fname.c_str(), "READ");
+    // open file
+    std::string fname = "templates.root";
+    TFile* file = TFile::Open(fname.data(), "READ");
 
-   // check if file is open
-   if (!file->IsOpen()) {
-      BCLog::OutError(Form("Could not open file %s.",fname.c_str()));
-      BCLog::OutError("Run macro CreateHistograms.C in Root to create the file.");
-      return;
-   }
+    // check if file is open
+    if (!file || !file->IsOpen()) {
+        BCLog::OutError(Form("Could not open file %s.", fname.c_str()));
+        BCLog::OutError("Run macro CreateHistograms.C in Root to create the file.");
+        return;
+    }
 
-   // read histograms
-   TH1D hist_signal     = *(TH1D *)file->Get("hist_sgn");   // signal template
-   TH1D hist_background = *(TH1D *)file->Get("hist_bkg");   // background template
-   TH1D hist_data       = *(TH1D *)file->Get("hist_data");  // data
+    // read histograms
+    TH1D* hist_signal     = (TH1D*)file->Get("hist_sgn");    // signal template
+    TH1D* hist_background = (TH1D*)file->Get("hist_bkg");    // background template
+    TH1D* hist_data       = (TH1D*)file->Get("hist_data");   // data
 
-   // ---- perform fitting ---- //
+    if (!hist_signal || !hist_background || !hist_data) {
+        BCLog::OutError("Could not open data histograms");
+        return;
+    }
 
-   // create new fitter object
-   BCMTF * m = new BCMTF("SingleChannelMTF");
+    // ---- perform fitting ---- //
 
-   // add channels
-   m->AddChannel("channel1");
+    // create new fitter object
+    BCMTF* m = new BCMTF("SingleChannelMTF");
 
-   // add processes
-   m->AddProcess("background", 200., 400.);
-   m->AddProcess("signal",       0., 200.);
+    // add channels
+    m->AddChannel("channel1");
 
-   // set data
-   m->SetData("channel1", hist_data);
+    // add processes
+    m->AddProcess("background", 200., 400.);
+    m->AddProcess("signal",       0., 200.);
 
-   // set template and histograms
-   m->SetTemplate("channel1", "signal",     hist_signal,     1.0);
-   m->SetTemplate("channel1", "background", hist_background, 1.0);
+    // set data
+    m->SetData("channel1", *hist_data);
 
-   // set priors
-   m->SetPriorGauss("background", 300., 10.);
-   m->SetPriorConstant("signal");
+    // set template and histograms
+    m->SetTemplate("channel1", "signal",     *hist_signal,     1.0);
+    m->SetTemplate("channel1", "background", *hist_background, 1.0);
 
-   // print templates
-	 m->GetChannel(0)->PrintTemplates(Form("%s_templates.pdf", m->GetChannel(0)->GetName().c_str()));
+    // set priors
+    m->GetParameter("background").SetPrior(new BCGaussianPrior(300., 10.));
+    m->GetParameter("signal").SetPriorConstant();
 
-   // ---- perform ensemble tests ---- //
+    // print templates
+    m->GetChannel(0)->PrintTemplates(m->GetChannel(0)->GetSafeName() + "_templates.pdf");
 
-   // create new analysis facility
-   BCMTFAnalysisFacility * facility = new BCMTFAnalysisFacility(m);
+    // ---- perform ensemble tests ---- //
 
-   // settings
-   facility->SetFlagMarginalize(true);
+    m->SetPrecision(BCEngineMCMC::kQuick);
 
-   // open new file
-   file = TFile::Open("ensembles.root", "RECREATE");
-   file->cd();
+    // create new analysis facility
+    BCMTFAnalysisFacility* facility = new BCMTFAnalysisFacility(m);
 
-   // create ensembles; option "data" means that all ensembles equal the data set
-   TTree * tree = facility->BuildEnsembles( std::vector<double>(0), 1000, "data");
+    // settings
+    facility->SetFlagMarginalize(true);
 
-   // run ensemble test; option "MCP" means that the templates are flucutated via a Poisson model
-   TTree * tree_out = facility->PerformEnsembleTest(tree, 1000, 0, "MCP");
+    // open new file
+    file = TFile::Open("ensembles.root", "RECREATE");
+    file->cd();
 
-   // write trees into file
-   tree->Write();
-   tree_out->Write();
+    // create ensembles; option "data" means that all ensembles equal the data set
+    TTree* tree = facility->BuildEnsembles( std::vector<double>(0), 1000, "data");
 
-   // close file
-   file->Close();
+    // run ensemble test; option "MCP" means that the templates are flucutated via a Poisson model
+    TTree* tree_out = facility->PerformEnsembleTest(tree, 1000, 0, "MCP");
 
-   // ---- clean up ---- //
+    // write trees into file
+    tree->Write();
+    tree_out->Write();
 
-   // free memory
-   delete file;
+    // close file
+    file->Close();
 
-   // free memory
-   delete m;
+    // ---- clean up ---- //
+
+    // free memory
+    delete file;
+
+    // free memory
+    delete m;
 
 }

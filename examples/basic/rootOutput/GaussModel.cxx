@@ -6,66 +6,26 @@
 #include <cmath>
 
 // ---------------------------------------------------------
-GaussModel::GaussModel() : BCModel()
+GaussModel::GaussModel(const std::string& name) : BCModel(name)
 {
-  // default constructor
-  DefineParameters();
-};
+    AddParameter("x", -10.0, 50.0); // index 0
+    AddParameter("y",  -5.0,  5.0); // index 1
+    AddParameter("z",  -5.0,  5.0); // index 2
 
-// ---------------------------------------------------------
-GaussModel::GaussModel(const char * name) : BCModel(name)
-{
-  // constructor
-  DefineParameters();
-};
-
-// ---------------------------------------------------------
-GaussModel::~GaussModel()
-// default destructor
-{
-};
-
-// ---------------------------------------------------------
-void GaussModel::DefineParameters()
-{
-  // add parameters x and y
-  AddParameter("x", -10.0, 50.0); // index 0
-  AddParameter("y",  -5.0,  5.0); // index 1
-  AddParameter("z",  -5.0,  5.0); // index 2
+    GetParameters().SetPriorConstantAll();
 }
 
 // ---------------------------------------------------------
-double GaussModel::LogLikelihood(const std::vector<double> &parameters)
+double GaussModel::LogLikelihood(const std::vector<double>& parameters)
 {
-  // assume a simple Gaussian Likelihood with two independent
-  // variables
-  double logprob = 0.;
+    double logprob = 0.;
 
-  double x = parameters.at(0);
-  double y = parameters.at(1);
-  double z = parameters.at(2);
+    // Likelihood = Gaus(x | mean = 0, std. dev. = 2)
+    //            * Gaus(y | mean = 0, std. dev. = 1)
+    //            * Gaus(z | mean = 0, std. dev. = 1)
+    logprob += BCMath::LogGaus(parameters[0], 0.0, 2.0); // x
+    logprob += BCMath::LogGaus(parameters[1], 0.0, 1.0); // y
+    logprob += BCMath::LogGaus(parameters[2], 0.0, 1.0); // z
 
-  // Gaussian Likelihood
-  logprob += BCMath::LogGaus(x, 0.0, 2.0);
-  logprob += BCMath::LogGaus(y, 0.0, 1.0);
-  logprob += BCMath::LogGaus(z, 0.0, 1.0);
-
-  return logprob;
+    return logprob;
 }
-
-// ---------------------------------------------------------
-double GaussModel::LogAPrioriProbability(const std::vector<double> &parameters)
-{
-  // assume flat prior in both variables
-  double logprob = 0.;
-
-  double dx = GetParameter(0)->GetRangeWidth();
-  double dy = GetParameter(1)->GetRangeWidth();
-
-  logprob += log(1./dx); // flat prior for x
-  logprob += log(1./dy); // flat prior for y
-
-  return logprob;
-}
-// ---------------------------------------------------------
-

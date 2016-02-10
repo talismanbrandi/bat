@@ -6,32 +6,18 @@
 // ---------------------------------------------------------
 class BinomialModel : public BCModel
 {
-   public:
+public:
 
-      // Constructors and destructor
-      BinomialModel();
-      BinomialModel(const char * name);
-      ~BinomialModel();
+    BinomialModel(const std::string& name, unsigned ntotal, unsigned nselected);
 
-      // Set total numer of events
-      void SetNTotal(int n)
-         { fNTotal = n; };
+    ~BinomialModel();
 
-      // Set selected numer of events
-      void SetNSelected(int n)
-         { fNSelected = n; };
+    double LogLikelihood(const std::vector<double>& pars);
 
-      // Methods to overload, see file BinomialModel.cxx
-      void DefineParameters();
-      double LogAPrioriProbability(const std::vector<double> &parameters);
-      double LogLikelihood(const std::vector<double> &parameters);
+protected:
 
-   private:
-      // the total number of events
-      int fNTotal;
-
-      // the selected (observed) number of events
-      int fNSelected;
+    unsigned fNTotal;          // total number of events
+    unsigned fNSelected;       // selected (observed) number of events
 };
 // ---------------------------------------------------------
 

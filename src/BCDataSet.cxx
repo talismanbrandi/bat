@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -14,388 +14,364 @@
 #include "BCLog.h"
 
 #include <TFile.h>
-#include <TTree.h>
+#include <TGraph.h>
+#include <TGraphErrors.h>
+#include <TGraphAsymmErrors.h>
+#include <TH2D.h>
 #include <TString.h>
+#include <TTree.h>
 
-#include <iostream>
+#include <cmath>
 #include <fstream>
+#include <limits>
+#include <sstream>
 
 // ---------------------------------------------------------
-BCDataSet::BCDataSet()
+BCDataSet::BCDataSet(unsigned n)
 {
-   fBCDataVector = 0;
+    SetNValuesPerPoint(n);
 }
 
 // ---------------------------------------------------------
-
-BCDataSet::~BCDataSet()
+std::vector<double> BCDataSet::GetDataComponents(unsigned index) const
 {
-   if (fBCDataVector) {
-      int ndatapoints = int(fBCDataVector->size());
-      for (int i = 0; i < ndatapoints; ++i)
-         delete fBCDataVector->at(i);
-      fBCDataVector->clear();
-      delete fBCDataVector;
-   }
+    std::vector<double> components;
+
+    if (index >= fNValuesPerPoint)
+        return components;
+
+    // reserve space
+    components.reserve(fDataVector.size());
+
+    // loop over data points
+    for (unsigned i = 0; i < fDataVector.size(); ++i)
+        components.push_back(fDataVector[i][index]);
+
+    return components;
 }
 
 // ---------------------------------------------------------
-BCDataSet::BCDataSet(const BCDataSet & bcdataset)
+bool BCDataSet::BoundsExist() const
 {
-   if (bcdataset.fBCDataVector) {
-      fBCDataVector = new BCDataVector();
-      for (int i = 0; i < int(bcdataset.fBCDataVector->size()); ++i) {
-         if (bcdataset.fBCDataVector->at(i))
-            fBCDataVector->push_back(new BCDataPoint(*(bcdataset.fBCDataVector->at(i))));
-         else
-            fBCDataVector->push_back(0);
-      }
-   }
-   else
-      fBCDataVector = 0;
+    for (unsigned i = 0; i < GetNValuesPerPoint(); ++i)
+        if (!std::isfinite(GetLowerBound(i)) or !std::isfinite(GetUpperBound(i)))
+            return false;
+    return true;
 }
 
 // ---------------------------------------------------------
-BCDataSet & BCDataSet::operator = (const BCDataSet & bcdataset)
+double BCDataSet::GetLowerBound(unsigned index) const
 {
-   if (bcdataset.fBCDataVector) {
-      fBCDataVector = new BCDataVector();
-      for (int i = 0; i < int(bcdataset.fBCDataVector->size()); ++i) {
-         if (bcdataset.fBCDataVector->at(i))
-            fBCDataVector->push_back(new BCDataPoint(*(bcdataset.fBCDataVector->at(i))));
-         else
-            fBCDataVector->push_back(0);
-      }
-   }
-   else
-      fBCDataVector = 0;
-
-   // return this
-   return *this;
+    if (index > GetNValuesPerPoint()) {
+        BCLog::OutError("BCDataSet::GetLowerBound : index out of range.");
+        return std::numeric_limits<double>::infinity();
+    }
+    if (std::isfinite(fUserLowerBounds[index]))
+        return fUserLowerBounds[index];
+    return fLowerBounds[index];
 }
 
 // ---------------------------------------------------------
-
-unsigned int BCDataSet::GetNDataPoints()
+double BCDataSet::GetUpperBound(unsigned index) const
 {
-   return fBCDataVector ? fBCDataVector->size() : 0;
+    if (index > GetNValuesPerPoint()) {
+        BCLog::OutError("BCDataSet::GetUpperBound : index out of range.");
+        return -std::numeric_limits<double>::infinity();
+    }
+    if (std::isfinite(fUserUpperBounds[index]))
+        return fUserUpperBounds[index];
+    return fUpperBounds[index];
 }
 
 // ---------------------------------------------------------
-
-unsigned int BCDataSet::GetNValuesPerPoint()
+bool BCDataSet::ReadDataFromFileTree(const std::string& filename, const std::string& treename, const std::string& branchnames, char delim)
 {
-   // check if vector exists and contains datapoints
-   if (fBCDataVector && fBCDataVector->size() > 0)
-      return GetDataPoint(0)->GetNValues();
+    // open root file
+    TFile* file = TFile::Open(filename.data(), "READ");
 
-   BCLog::OutError("BCDataSet::GetNValuesPerPoint : Data set doesn't exist yet");
-   return 0;
+    // check if file is open and warn if not.
+    if (!file->IsOpen()) {
+        BCLog::OutError("BCDataSet::ReadDataFromFileTree : Could not open file " + filename + ".");
+        return false;
+    }
+
+    // get tree
+    TTree* tree = (TTree*) file->Get(treename.data());
+
+    // check if tree is there and warn if not.
+    if (!tree) {
+        BCLog::OutError("BCDataSet::ReadDataFromFileTree : Could not find TTree " + treename + ".");
+        file->Close();
+        return false;
+    }
+
+    // calculate maximum number of entries
+    long nentries = tree->GetEntries();
+
+    // check if there are any events in the tree and close file if not.
+    if (nentries <= 0) {
+        BCLog::OutError("BCDataSet::ReadDataFromFileTree : No events in TTree " + treename + ".");
+        file->Close();
+        return false;
+    }
+
+    // if data set contains data, clear data object container ...
+    if (!fDataVector.empty()) {
+        Reset();
+        BCLog::OutDetail("BCDataSet::ReadDataFromFileTree : Overwrite existing data.");
+    }
+
+    // define a vector of std::strings which contain the tree names.
+    std::vector<std::string> branches;
+    // split branchnames string up into above vector
+    std::stringstream branch_ss(branchnames);
+    std::string branchname;
+    while (std::getline(branch_ss, branchname, delim))
+        if (!branchname.empty())
+            branches.push_back(branchname);
+
+    // create temporary vector with data and assign some zeros.
+    std::vector<double> data(branches.size(), 0);
+
+    // set the branch address.
+    for (unsigned i = 0; i < branches.size(); ++i)
+        tree->SetBranchAddress(branches[i].data(), &data[i]);
+
+    // loop over entries
+    for (long ientry = 0; ientry < nentries; ++ientry) {
+        tree->GetEntry(ientry);
+        AddDataPoint(BCDataPoint(data));
+    }
+
+    file->Close();
+
+    // remove file pointer.
+    if (file)
+        delete file;
+
+    return true;
 }
 
 // ---------------------------------------------------------
-
-BCDataPoint * BCDataSet::GetDataPoint(unsigned int index)
+bool BCDataSet::ReadDataFromFileTxt(const std::string& filename, int nbranches)
 {
-   if (!fBCDataVector || GetNDataPoints()==0 )
-   {
-      BCLog::OutError("BCDataSet::GetDataPoint : Dataset is empty.");
-      return 0;
-   }
+    // open text file.
+    std::fstream file;
+    file.open(filename.data(), std::fstream::in);
 
-   // check if index is within range. Return the data point if true ...
-   if(index < GetNDataPoints())
-      return fBCDataVector->at(index);
+    // check if file is open and warn if not.
+    if (!file.is_open()) {
+        BCLog::OutError("BCDataSet::ReadDataFromFileText : Could not open file " + filename + ".");
+        return false;
+    }
 
-   // ... or give out warning and return 0 if not.
-   BCLog::OutError("BCDataSet::GetDataPoint : Index out of range. Return 0.");
-   return 0;
+    // if data set contains data, clear data object container ...
+    if (!fDataVector.empty()) {
+        Reset();
+        BCLog::OutDetail("BCDataSet::ReadDataFromFileTxt : Overwrite existing data.");
+    }
+
+    // create temporary vector with data and assign some zeros.
+    std::vector<double> data(nbranches, 0);
+
+    // reset counter
+    int nentries = 0;
+
+    // read data and create data points.
+    while (!file.eof()) {
+
+        // read data from file
+        int i = 0;
+        while (file >> data[i]) {
+            if (i == nbranches - 1)
+                break;
+            i++;
+        }
+
+        // create data point.
+        if (i == nbranches - 1) {
+            AddDataPoint(BCDataPoint(data));
+            ++nentries;
+        }
+    }
+
+    // issue error if no entries were loaded
+    if (nentries <= 0)
+        BCLog::OutError("BCDataSet::ReadDataFromFileText : No events in the file " + filename + ".");
+
+    file.close();
+
+    return (nentries > 0);
 }
 
 // ---------------------------------------------------------
-std::vector<double> BCDataSet::GetDataComponents( int index)
+bool BCDataSet::AddDataPoint(const BCDataPoint& datapoint)
 {
-   unsigned int N = GetNDataPoints();
-   std::vector<double> components( N , 0.0 );
+    if (fNValuesPerPoint == 0 and fDataVector.empty())
+        SetNValuesPerPoint(datapoint.GetNValues());
 
-   BCDataPoint* point=0;
-   for (unsigned int i = 0; i < N; ++i) {
-      //rely on index checking in Get... methods
-      point = GetDataPoint(i);
-      components[i] = point->GetValue(index);
-   }
+    if (datapoint.GetNValues() != GetNValuesPerPoint())
+        return false;
 
-   return components;
-}
+    fDataVector.push_back(datapoint);
 
+    for (unsigned i = 0; i < GetNValuesPerPoint(); ++i) {
+        // check lower bound
+        if (fDataVector.back()[i] < fLowerBounds[i])
+            fLowerBounds[i] = fDataVector.back()[i];
+        // check upper bound
+        if (fDataVector.back()[i] > fUpperBounds[i])
+            fUpperBounds[i] = fDataVector.back()[i];
+    }
 
-
-// ---------------------------------------------------------
-
-int BCDataSet::ReadDataFromFileTree(const char * filename, const char * treename, const char * branchnames)
-{
-   // open root file
-   TFile * file = TFile::Open(filename, "READ");
-
-   // check if file is open and warn if not.
-   if (!file->IsOpen())
-   {
-      BCLog::OutError(Form("BCDataSet::ReadDataFromFileTree : Could not open file %s.", filename));
-      return -1;
-   }
-
-   // get tree
-   TTree * tree = (TTree*) file->Get(treename);
-
-   // check if tree is there and warn if not.
-   if (!tree)
-   {
-      BCLog::OutError(Form("BCDataSet::ReadDataFromFileTree : Could not find TTree %s.", treename));
-
-      // close file
-      file->Close();
-
-      return -1;
-   }
-
-   // if data set contains data, clear data object container ...
-   if (fBCDataVector != 0)
-   {
-      fBCDataVector->clear();
-
-      BCLog::OutDetail("BCDataSet::ReadDataFromFileTree : Overwrite existing data.");
-   }
-
-   // ... or allocate memory for the vector if not.
-   else
-      fBCDataVector = new BCDataVector();
-
-   // get branch names.
-
-   // first, copy the branchnames into a std::string.
-   std::string branches(branchnames);
-
-   // define a vector of std::strings which contain the tree names.
-   std::vector<std::string> * branchnamevector = new std::vector<std::string>;
-
-   // the names are supposed to be separated by commas. find first comma
-   // entry in the string.
-   int temp_index = branches.find_first_of(",");
-
-   // reset number of branches
-   int nbranches = 0;
-
-   // repeat until the is nothing left in the string.
-   while(branches.size() > 0)
-   {
-      // temporary string which contains the name of the current branch
-      std::string branchname;
-
-      // get current branch name
-
-      // if there is no comma the current branchname corresponds to the whole string, ...
-      if (temp_index == -1)
-         branchname = branches;
-
-      // ... if there is a comma, copy that part of the string into the current branchname.
-      else
-         branchname.assign(branches, 0, temp_index);
-
-      // write branch name to a vector
-      branchnamevector->push_back(branchname);
-
-      // increase the number of branches found
-      nbranches++;
-
-      // cut remaining string with branchnames
-
-      // if there is no comma left empty the string, ...
-      if (temp_index == -1)
-            branches = "";
-
-      // ... if there is a comma remove the current branchname from the string.
-      else
-         branches.erase(0, temp_index + 1);
-
-      // find the next comma
-      temp_index = branches.find_first_of(",");
-   }
-
-   // create temporary vector with data and assign some zeros.
-   std::vector<double> data;
-   data.assign(nbranches, 0.0);
-
-   // set the branch address.
-   for (int i = 0; i < nbranches; i++)
-      tree->SetBranchAddress(branchnamevector->at(i).data(), &data.at(i));
-
-   // calculate maximum number of entries
-   int nentries = tree->GetEntries();
-
-   // check if there are any events in the tree and close file if not.
-   if (nentries <= 0)
-   {
-      BCLog::OutError(Form("BCDataSet::ReadDataFromFileTree : No events in TTree %s.", treename));
-
-      // close file
-      file->Close();
-
-      return -1;
-   }
-
-   // loop over entries
-   for (int ientry = 0; ientry < nentries; ientry++)
-   {
-      // get entry
-      tree->GetEntry(ientry);
-
-      // create data object
-      BCDataPoint * datapoint = new BCDataPoint(nbranches);
-
-      // copy data
-
-      for (int i = 0; i < nbranches; i++)
-         datapoint->SetValue(i, data.at(i));
-
-      // add data point to this data set.
-      AddDataPoint(datapoint);
-   }
-
-   // close file
-   file->Close();
-
-   // remove file pointer.
-   if (file)
-      delete file;
-
-   return 0;
-
+    return true;
 }
 
 // ---------------------------------------------------------
-
-int BCDataSet::ReadDataFromFileTxt(const char * filename, int nbranches)
+void BCDataSet::AdjustBoundForUncertainties(unsigned i, double nSigma, unsigned i_err1, int i_err2)
 {
-   // open text file.
-   std::fstream file;
-   file.open(filename, std::fstream::in);
+    // check indices
+    if (i >= GetNValuesPerPoint() or i_err1 >= GetNValuesPerPoint() or i_err2 >= (int)GetNValuesPerPoint())
+        return;
 
-   // check if file is open and warn if not.
-   if (!file.is_open())
-   {
-      BCLog::OutError(Form("BCDataSet::ReadDataFromFileText : Could not open file %s.", filename));
-      return -1;
-   }
+    // if uncertainty above value is unassigned, use same data axis as for below.
+    if (i_err2 < 0)
+        i_err2 = i_err1;
 
-   // if data set contains data, clear data object container ...
-   if (fBCDataVector != 0)
-   {
-      fBCDataVector->clear();
+    // recalculate bounds accounting for uncertainty
+    for (unsigned j = 0; j < fDataVector.size(); ++j) {
 
-      BCLog::OutDetail("BCDataSet::ReadDataFromFileTxt : Overwrite existing data.");
-   }
+        // check lower bound
+        if (fDataVector[j][i] - nSigma * fDataVector[j][i_err1] < fLowerBounds[i])
+            fLowerBounds[i] = fDataVector[j][i] - nSigma * fDataVector[j][i_err1];
 
-   // ... or allocate memory for the vector if not.
-   else
-      fBCDataVector = new BCDataVector();
-
-   // create temporary vector with data and assign some zeros.
-   std::vector<double> data;
-   data.assign(nbranches, 0.0);
-
-   // reset counter
-   int nentries = 0;
-
-   // read data and create data points.
-   while (!file.eof())
-   {
-      // read data from file
-      int i=0;
-      while(file >> data[i])
-      {
-         if (i==nbranches-1)
-            break;
-         i++;
-      }
-
-      // create data point.
-      if(i == nbranches-1)
-      {
-         BCDataPoint * datapoint = new BCDataPoint(nbranches);
-
-         // copy data into data point
-         for (int i = 0; i < nbranches; i++)
-            datapoint->SetValue(i, data.at(i));
-
-         // add data point to this data set.
-         AddDataPoint(datapoint);
-
-         // increase counter
-         nentries++;
-      }
-   }
-
-   // check if there are any events in the tree and close file if not.
-   if (nentries <= 0)
-   {
-      BCLog::OutError(Form("BCDataSet::ReadDataFromFileText : No events in the file %s.", filename));
-
-      // close file
-      file.close();
-
-      return -1;
-   }
-
-   // close file
-   file.close();
-
-   return 0;
-
+        // check upper bound
+        if (fDataVector[j][i] + nSigma * fDataVector[j][i_err2] > fUpperBounds[i])
+            fUpperBounds[i] = fDataVector[j][i] + nSigma * fDataVector[j][i_err2];
+    }
 }
 
 // ---------------------------------------------------------
-
-void BCDataSet::AddDataPoint(BCDataPoint * datapoint)
+void BCDataSet::SetNValuesPerPoint(unsigned n)
 {
-
-   // check if memory for the vector has been allocated and
-   // allocate if not.
-   if (fBCDataVector == 0)
-      fBCDataVector = new BCDataVector();
-
-   // add data point to the data set.
-   fBCDataVector->push_back(datapoint);
-
+    fNValuesPerPoint = n;
+    fLowerBounds.SetNValues(n, std::numeric_limits<double>::infinity());
+    fUpperBounds.SetNValues(n, -std::numeric_limits<double>::infinity());
+    fUserLowerBounds.SetNValues(n, std::numeric_limits<double>::infinity());
+    fUserUpperBounds.SetNValues(n, -std::numeric_limits<double>::infinity());
+    fFixed.assign(n, false);
 }
 
 // ---------------------------------------------------------
-
-void BCDataSet::Reset()
+void BCDataSet::SetBounds(unsigned index, double lower_bound, double upper_bound, bool fixed)
 {
-
-   // if memory has been allocated to the data set
-   // clear the content.
-   if (fBCDataVector != 0)
-      fBCDataVector->clear();
-
+    if (index >= GetNValuesPerPoint()) {
+        BCLog::OutError("BCDataSet::SetBounds : index out of range.");
+        return;
+    }
+    if (lower_bound >= upper_bound) {
+        BCLog::OutWarning("BCDataSet::SetBounds : lower bound is greater than or equal to upper_bound.");
+        return;
+    }
+    fUserLowerBounds[index] = lower_bound;
+    fUserUpperBounds[index] = upper_bound;
+    fFixed[index] = fixed;
 }
 
 // ---------------------------------------------------------
-
-void BCDataSet::Dump()
+void BCDataSet::PrintSummary(void (*output)(const std::string&)) const
 {
-   if (!fBCDataVector) {
-      BCLog::OutError("BCDataSet::Dump : Data set is empty. Nothing to dump.");
-      return;
-   }
+    output("Data set summary:");
+    output(Form("Number of points           : %u", GetNDataPoints()));
+    output(Form("Number of values per point : %u", GetNValuesPerPoint()));
+    for (unsigned i = 0; i < fDataVector.size(); ++i) {
+        output(Form("Data point %5u", i));
+        fDataVector[i].PrintSummary(output);
+    }
+}
 
-   BCLog::OutSummary("Data set summary:");
-   BCLog::OutSummary(Form("Number of points           : %d", int(fBCDataVector->size())));
-   BCLog::OutSummary(Form("Number of values per point : %d", GetDataPoint(0)->GetNValues()));
-   unsigned int n = GetDataPoint(0)->GetNValues();
-   for (unsigned int i=0; i< fBCDataVector->size(); i++) {
-      BCLog::OutSummary(Form("Data point %5d :  ", i));
-      for (unsigned int j=0; j<n; j++)
-         BCLog::OutSummary(Form("%d : %12.5g", j, GetDataPoint(i)->GetValue(j)));
-   }
+// ---------------------------------------------------------
+TGraph* BCDataSet::GetGraph(unsigned x, unsigned y) const
+{
+    if (x >= GetNValuesPerPoint() or y >= GetNValuesPerPoint())
+        return NULL;
+
+    TGraph* G = new TGraph();
+
+    // fill graph
+    for (unsigned i = 0; i < fDataVector.size(); ++i)
+        G->SetPoint(i, fDataVector[i][x], fDataVector[i][y]);
+
+    return G;
+}
+
+// ---------------------------------------------------------
+TGraphErrors* BCDataSet::GetGraph(unsigned x, unsigned y, int ex, int ey) const
+{
+    if (x >= GetNValuesPerPoint() or y >= GetNValuesPerPoint()
+            or ex >= (int)GetNValuesPerPoint() or ey >= (int)GetNValuesPerPoint())
+        return NULL;
+
+    TGraphErrors* G = new TGraphErrors();
+
+    // fill graph
+    for (unsigned i = 0; i < fDataVector.size(); ++i) {
+        G->SetPoint(i, fDataVector[i][x], fDataVector[i][y]);
+        double EX = (ex >= 0) ? fDataVector[i][ex] : 0;
+        double EY = (ey >= 0) ? fDataVector[i][ey] : 0;
+        G->SetPointError(i, EX, EY);
+    }
+
+    return G;
+}
+
+// ---------------------------------------------------------
+TGraphAsymmErrors* BCDataSet::GetGraph(unsigned x, unsigned y, int ex_below, int ex_above, int ey_below, int ey_above) const
+{
+    if (x >= GetNValuesPerPoint() or y >= GetNValuesPerPoint()
+            or ex_below >= (int)GetNValuesPerPoint() or ex_above >= (int)GetNValuesPerPoint()
+            or ey_below >= (int)GetNValuesPerPoint() or ey_above >= (int)GetNValuesPerPoint())
+        return NULL;
+
+    TGraphAsymmErrors* G = new TGraphAsymmErrors();
+
+    // fill graph
+    for (unsigned i = 0; i < fDataVector.size(); ++i) {
+        G->SetPoint(i, fDataVector[i][x], fDataVector[i][y]);
+        double EXb = (ex_below >= 0) ? fDataVector[i][ex_below] : 0;
+        double EXa = (ex_above >= 0) ? fDataVector[i][ex_above] : 0;
+        double EYb = (ey_below >= 0) ? fDataVector[i][ey_below] : 0;
+        double EYa = (ey_above >= 0) ? fDataVector[i][ey_above] : 0;
+        G->SetPointError(i, EXb, EXa, EYb, EYa);
+    }
+
+    return G;
+}
+
+// ---------------------------------------------------------
+TH2* BCDataSet::CreateH2(const char* name, const char* title, unsigned x, unsigned y, unsigned nbins_x, unsigned nbins_y, double x_padding, double y_padding) const
+{
+    if (x >= GetNValuesPerPoint() or y >= GetNValuesPerPoint())
+        return NULL;
+
+    if (!BoundsExist())
+        return NULL;
+
+    double x_low = GetLowerBound(x);
+    double x_high = GetUpperBound(x);
+    double y_low = GetLowerBound(y);
+    double y_high = GetUpperBound(y);
+
+    if (x_padding > 0) {
+        double dX = x_padding * (x_high - x_low);
+        x_low  -= dX;
+        x_high += dX;
+    }
+    if (y_padding > 0) {
+        double dY = y_padding * (y_high - y_low);
+        y_low  -= dY;
+        y_high += dY;
+    }
+
+    return new TH2D(name, title, nbins_x, x_low, x_high, nbins_y, y_low, y_high);
 }

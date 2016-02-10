@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014, the BAT core developer team
+ * Copyright (C) 2007-2015, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -24,70 +24,113 @@
 
 // ---------------------------------------------------------
 
+#include <string>
 #include <vector>
+
+#include "BCLog.h"
 
 // ---------------------------------------------------------
 
 class BCDataPoint
 {
-   public:
+public:
 
-      /** \name Constructors and destructors */
-      /** @{ */
+    /** \name Constructors and destructor */
+    /** @{ */
 
-      /**
-       * A constructor.
-       * @param nvariables The number of variables stored in a data.
-       * object */
-      BCDataPoint(int nvariables);
+    /**
+     * A constructor.
+     * @param nvariables The number of variables stored in a data object. */
+    BCDataPoint(int nvariables = 0);
 
-      /**
-       * A constructor.
-       * @param x The vector containing the data. */
-      BCDataPoint(const std::vector<double> & x);
+    /**
+     * A constructor.
+     * @param x The vector containing the data. */
+    BCDataPoint(const std::vector<double>& x);
+    /** @} */
 
-      /** @} */
-      /** \name Member functions (get) */
-      /** @{ */
+    /** \name operators */
+    /** @{ */
 
-      /**
-       * @param index The index of the variable.
-       * @return The value of the variable. */
-      double GetValue(unsigned index) const;
+    /**
+     * Raw and fast access. */
+    double& operator[](unsigned index)
+    {	return fData[index]; }
 
-      /**
-       * @return A vector of values. */
-      const std::vector<double> & GetValues() const
-         { return fData; };
+    /**
+     * Raw and fast access. */
+    const double& operator[](unsigned index) const
+    {	return fData[index]; }
 
-      /**
-       * Returns the number of values. */
-      unsigned int GetNValues() const
-         { return fData.size(); };
+    /** @} */
 
-      /** @} */
+    /** \name Member functions (get) */
+    /** @{ */
 
-      /** \name Member functions (set) */
-      /** @{ */
+    /**
+     * Safer access, but slower
+     * @param index The index of the variable.
+     * @return The value of the variable. */
+    double GetValue(unsigned index) const
+    { return fData.at(index); }
 
-      /**
-       * Set the value of a variable.
-       * @param index The index of the variable
-       * @param value The value of the variable */
-      void SetValue(unsigned index, double value);
+    /**
+     * @return A vector of values. */
+    std::vector<double>& GetValues()
+    { return fData; };
 
-      /**
-       * Set the values of all variables.
-       * @param values A vector of values */
-      void SetValues(const std::vector<double> & values);
+    /**
+     * @return A vector of values. */
+    const std::vector<double>& GetValues() const
+    { return fData; };
 
-      /** @} */
+    /**
+     * Returns the number of values. */
+    unsigned int GetNValues() const
+    { return fData.size(); };
 
-   private:
+    /** @} */
 
-      /**
-       * The vector containing the values of the variables. */
-      std::vector<double> fData;
+    /** \name Member functions (set) */
+    /** @{ */
+
+    /**
+     * Safer, but slower, value setting of a variable.
+     * @param index The index of the variable
+     * @param value The value of the variable */
+    void SetValue(unsigned index, double value)
+    { fData.at(index) = value; }
+
+    /**
+     * Set the values of all variables.
+     * @param values A vector of values */
+    void SetValues(const std::vector<double>& values);
+
+    /**
+     * Set the number of variables.
+     * Use with caution!
+     * @param n New dimensionality to set for data point.
+     * @param val Value to fill into new data values if enlarging data point size. */
+    void SetNValues(unsigned n, double val = 0.)
+    { fData.resize(n, val); }
+
+    /** @} */
+
+    /** \name Member functions (miscellaneous methods) */
+    /** @{ */
+
+    /**
+     * Print summary of data point to the string handler.
+     * @param output String handler (default = BCLog::OutSummary. */
+    void PrintSummary(void (*output)(const std::string&) = BCLog::OutSummary) const;
+
+    /** @} */
+
+private:
+
+    /**
+     * The vector containing the values of the variables. */
+    std::vector<double> fData;
 
 };
 

@@ -1,12 +1,35 @@
 BAT - Bayesian Analysis Toolkit
 ===============================
 
-Release notes for version:    0.9.4.1
-Release date:                 2015-01-19
-Urgency:                      low
+Release notes for version:    1.1
+Release date:                 XXXX-XX-XX
+Urgency:                      high
+
+Overview
+--------
+
+...
+
+
+New features and improvements
+---------------------------
+
+...
+
 
 Bug fixes
 ---------
 
-* fix installation on Mac OS X with root6 and a version of `sed` that
-  is incompatible with GNU `sed` to avoid errors when using `sed -i`.
+...
+
+
+Known problems
+--------------
+
+...
+
+
+Interface changes
+-----------------
+
+...
