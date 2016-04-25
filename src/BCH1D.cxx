@@ -420,7 +420,8 @@ void BCH1D::PrintSummary(const std::string& prefix, unsigned prec, std::vector<d
 
     std::vector<BCH1D::BCH1DSmallestInterval> v = GetSmallestIntervals(intervals);
     for (unsigned i = 0; i < v.size(); ++i) {
-        BCLog::OutSummary(prefix + Form("Smallest interval%s containing %.1f%% and local mode%s:", (v[i].intervals.size() > 1 ? "s" : ""), v[i].total_mass, (v[i].intervals.size() > 1 ? "s" : "")));
+        BCLog::OutSummary(prefix + Form("Smallest interval%s containing %.1f%% and local mode%s:", (v[i].intervals.size() > 1 ? "s" : ""), v[i].total_mass*100., (v[i].intervals.size() > 1 ? "s" : "")));
+        /* Multiplied by 100 to get numbers in %*/
         for (unsigned j = 0; j < v[i].intervals.size(); ++j)
             BCLog::OutSummary(prefix + Form("(%.*g, %.*g) (local mode at %.*g with rel. height %.*g; rel. area %.*g)",
                                             prec, v[i].intervals[j].xmin,
