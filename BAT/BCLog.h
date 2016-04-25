@@ -41,6 +41,8 @@
 
 #define BCLOG_WARNING(s) BCLOG_INTERNAL_OUT(OutWarning, s)
 
+#define BCLOG_RESULTS(s) BCLOG_INTERNAL_OUT(OutResults, s)
+/* Modifications made to write summary to file without the prefix. */
 // ---------------------------------------------------------
 
 #include <fstream>
@@ -60,9 +62,11 @@ public:
         debug,                  ///< Print everything, including debug info
         detail,                 ///< Print all details of operation
         summary,                ///< Print only results summary, warnings, and errors
+        results,                ///< Print summary (results) to file without prefix
         warning,                ///< Print only warnings and errors
         error,                  ///< Print only errors
         nothing                 ///< Print nothing
+        /* Modifications made to write summary to file without the prefix. LogLevel "results" added. */
     };
 
     /** \name Constructor and destructor */
@@ -158,7 +162,11 @@ public:
     { Out(warning, message); };
 
     static void OutSummary(const std::string& message)
-    { Out(summary, message); };
+    { 
+      if (fMinimumLogLevelFile == results) Out(results, message);
+      else Out(summary, message);
+      /* Modifications made to write summary to file without the prefix. */
+    };
 
     static void OutDetail(const std::string& message)
     { Out(detail, message); };

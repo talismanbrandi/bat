@@ -72,12 +72,14 @@ void BCLog::Out(BCLog::LogLevel loglevelfile, BCLog::LogLevel loglevelscreen, co
     if (BCLog::IsOpen()) {
         // write message in to log file
         if (loglevelfile >= BCLog::fMinimumLogLevelFile)
-            BCLog::fOutputStream << BCLog::ToString(loglevelfile) << " : " << message << std::endl;
+            BCLog::fOutputStream << BCLog::ToString(loglevelfile) << message << std::endl;
+        /* Modifications made to write summary to file without the prefix. */
     }
 
     // write message to screen
     if (loglevelscreen >= BCLog::fMinimumLogLevelScreen)
-        std::cout << BCLog::ToString(loglevelscreen) << " : " << message << std::endl;
+        std::cout << BCLog::ToString(loglevelscreen) << message << std::endl;
+    /* Modifications made to write summary to file without the prefix. */
 }
 
 // ---------------------------------------------------------
@@ -87,7 +89,7 @@ void BCLog::StartupInfo()
     const char* message = Form(
                               " +------------------------------------------------------+\n"
                               " |                                                      |\n"
-                              " | BAT version %7s                                  |\n"
+                              " | BAT version %7s                                |\n"
                               " | Copyright (C) 2007-2015, the BAT core developer team |\n"
                               " | All rights reserved.                                 |\n"
                               " |                                                      |\n"
@@ -115,16 +117,19 @@ std::string BCLog::ToString(BCLog::LogLevel loglevel)
 {
     switch (loglevel) {
         case debug:
-            return "Debug  ";
+            return "Debug   : ";
         case detail:
-            return "Detail ";
+            return "Detail  : ";
         case summary:
-            return "Summary";
+            return "Summary : ";
+        case results:
+            return "";
         case warning:
-            return "Warning";
+            return "Warning : ";
         case error:
-            return "Error  ";
+            return "Error   : ";
         default:
             return "";
+        /* Modifications made to write summary to file without the prefix. Case "results" added. */
     }
 }
