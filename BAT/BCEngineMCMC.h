@@ -1237,13 +1237,13 @@ public:
     /** Generates a new point using the Metropolis algorithm for one chain.
      * @param chain chain index
      * @return Whether proposed point was accepted (true) or previous point was kept (false). */
-    bool GetNewPointMetropolis(unsigned chain);
+    bool GetNewPointMetropolisAllChains();
 
     /** Generates a new point using the Metropolis algorithm for one chain, varying only one parameter's value
      * @param chain chain index
      * @param parameter index of parameter to vary
      * @return Whether proposed point was accepted (true) or previous point was kept (false). */
-    bool GetNewPointMetropolis(unsigned chain, unsigned parameter);
+    bool GetNewPointMetropolisAllChains(unsigned parameter);
 
     /**
      * Updates statistics: fill marginalized distributions */
@@ -1401,6 +1401,10 @@ public:
     void UpdateChainIndex(int chain);
 
     /** @} */
+    
+    /* Begin MPI MOD */
+    int procnum;
+    /* End MPI MOD */
 
 private:
     /**

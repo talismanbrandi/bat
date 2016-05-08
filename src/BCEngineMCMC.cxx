@@ -56,6 +56,10 @@
 #include <omp.h>
 #endif
 
+/* Begin MPI MOD */
+#include <mpi.h>
+/* End MPI MOD */
+
 namespace
 {
 #if ROOTMATHMORE
@@ -97,6 +101,9 @@ BCEngineMCMC::BCEngineMCMC(const std::string& name)
     SetName(name);
     SetPrecision(BCEngineMCMC::kMedium);
     SetRandomSeed(0);
+    /* Begin MPI MOD */
+    procnum = MPI::COMM_WORLD.Get_size();
+    /* End MPI MOD */
 }
 
 // ---------------------------------------------------------
@@ -134,6 +141,9 @@ BCEngineMCMC::BCEngineMCMC(const std::string& filename, const std::string& name,
     SetPrecision(BCEngineMCMC::kMedium);
     SetRandomSeed(0);
     LoadMCMC(filename, "", "", loadObservables);
+    /* Begin MPI MOD */
+    procnum = MPI::COMM_WORLD.Get_size();
+    /* End MPI MOD */
 }
 
 // ---------------------------------------------------------
@@ -216,6 +226,9 @@ BCEngineMCMC::BCEngineMCMC(const BCEngineMCMC& other)
                     fH2Marginalized[i][j] = dynamic_cast<TH2*>(other.fH2Marginalized[i][j]->Clone());
         }
     }
+    /* Begin MPI MOD */
+    procnum = MPI::COMM_WORLD.Get_size();
+    /* End MPI MOD */
 }
 
 // ---------------------------------------------------------
@@ -1481,92 +1494,246 @@ bool BCEngineMCMC::GetProposalPointMetropolis(unsigned ichain, unsigned ipar, st
 }
 
 // --------------------------------------------------------
-bool BCEngineMCMC::GetNewPointMetropolis(unsigned chain, unsigned parameter)
+bool BCEngineMCMC::GetNewPointMetropolisAllChains(unsigned parameter)
 {
-    // increase counter
-    fMCMCNIterations[chain]++;
-
-    // get proposal point
-    if ( GetProposalPointMetropolis(chain, parameter, fMCMCThreadLocalStorage[chain].xLocal) ) {
-        // calculate probabilities of the old and new points
-        double p0 = (std::isfinite(fMCMCprob[chain])) ? fMCMCprob[chain] : -std::numeric_limits<double>::max();
-        double p1 = LogEval(fMCMCThreadLocalStorage[chain].xLocal);
-
-        if (std::isfinite(p1)) {
-            // if the new point is more probable, keep it; or else throw dice
-            if ( p1 >= p0 || log(fMCMCThreadLocalStorage[chain].rng->Rndm()) < (p1 - p0) ) {
-                // increase efficiency
-                fMCMCStatistics[chain].efficiency[parameter] += (1. - fMCMCStatistics[chain].efficiency[parameter]) / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
-                // copy the point
-                fMCMCx[chain][parameter] = fMCMCThreadLocalStorage[chain].xLocal[parameter];
-                // save the probability of the point
-                fMCMCprob[chain] = p1;
-                fMCMCLogLikelihood[chain] = fMCMCLogLikelihood_Provisional[chain];
-                fMCMCLogPrior[chain] = fMCMCLogPrior_Provisional[chain];
-
-                // execute user code
-                MCMCCurrentPointInterface(fMCMCThreadLocalStorage[chain].xLocal, chain, true);
-                return true;
-            } else {
-                // decrease efficiency
-                fMCMCStatistics[chain].efficiency[parameter] *= 1.*fMCMCStatistics[chain].n_samples_efficiency / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
+    unsigned mychain = 0;
+    int iproc = 0;
+    unsigned npars = fParameters.Size();
+    int buffsize = npars + 1;
+    double p0[procnum];
+    int index_chain[procnum];
+    double *recvbuff = new double[buffsize];
+    std::vector<double> pars;
+    double **buff;
+    
+    
+    //------------------
+    buff = new double*[procnum];
+    buff[0]=new double[procnum];
+    for(int i=1;i<procnum;i++)
+        buff[i]=buff[i-1]+1;
+    //------------------
+    
+    double ** sendbuff = new double *[procnum];
+    sendbuff[0] = new double[procnum * buffsize];
+    for (int il = 1; il < procnum; il++)
+        sendbuff[il] = sendbuff[il - 1] + buffsize;
+    
+    
+    double ll;
+    std::vector<std::vector<double> > fMCMCxvect;
+    bool last = false;
+    
+    
+    while (mychain < fMCMCNChains) {
+        
+        bool accept = false;
+        // increase counter
+        fMCMCNIterations[mychain]++;
+        UpdateChainIndex(mychain);
+        
+        // get proposal point
+        if ( GetProposalPointMetropolis(mychain, parameter, fMCMCThreadLocalStorage[mychain].xLocal) ) {
+            
+            if (!last) {
+                // calculate probabilities of the old and new points
+                p0[iproc] = (std::isfinite(fMCMCprob[mychain])) ? fMCMCprob[mychain] : -std::numeric_limits<double>::max();
+                fMCMCxvect.push_back(fMCMCThreadLocalStorage[mychain].xLocal);
+                index_chain[iproc] = mychain;
+                iproc++;
+                mychain++;
+                if (iproc < procnum && mychain < fMCMCNChains) continue;
+            } else if (iproc == 0) break;
+            
+            for(int unsigned il = 0; il < fMCMCxvect.size() ; il++) {
+                //The first entry of the array specifies the task to be executed.
+                sendbuff[il][0] = 1.; // 1 = likelihood calculation
+                for (int im = 1; im < buffsize; im++) sendbuff[il][im] = fMCMCxvect[il][im-1];
             }
-        } else {						// new log(likelihood) was not a finite number
-            BCLog::OutDebug(Form("Log(likelihood) evaluated to nan or inf in chain %i while varying parameter %s to %.3e", chain, GetParameter(parameter).GetName().data(), fMCMCThreadLocalStorage[chain].xLocal[parameter]));
-            // decrease efficiency
-            fMCMCStatistics[chain].efficiency[parameter] *= 1.*fMCMCStatistics[chain].n_samples_efficiency / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
-            // print parameter point
+            
+            for(int il = fMCMCxvect.size() ; il < procnum; il++) sendbuff[il][0] = 0.; // 0 = nothing to execute
+            
+            MPI::COMM_WORLD.Scatter(sendbuff[0], buffsize, MPI::DOUBLE, recvbuff, buffsize, MPI::DOUBLE, 0);
+            
+            if (recvbuff[0] == 1.) {
+                pars.assign(recvbuff + 1, recvbuff + buffsize);
+                ll = LogEval(pars);
+            } else
+                ll = log(0.);
+            
+            //        double calctime = MPI::Wtime() - inittime;
+            //        inittime = MPI::Wtime();
+            MPI::COMM_WORLD.Gather(&ll, 1, MPI::DOUBLE, buff[0], 1, MPI::DOUBLE, 0);
+            
+            //double p1 = LogEval(fMCMCThreadLocalStorage[chain].xLocal);
+            for (int unsigned j = 0; j < fMCMCxvect.size(); j++) {
+                
+                if (std::isfinite(*buff[j])) {
+                    // if the new point is more probable, keep it; or else throw dice
+                    if ( *buff[j] >= p0[j] || log(fMCMCThreadLocalStorage[index_chain[j]].rng->Rndm()) < (*buff[j] - p0[j]) ) {
+                        // increase efficiency
+                        fMCMCStatistics[index_chain[j]].efficiency[parameter] += (1. - fMCMCStatistics[index_chain[j]].efficiency[parameter]) / (fMCMCStatistics[index_chain[j]].n_samples_efficiency + 1.);
+                        // copy the point
+                        fMCMCx[index_chain[j]][parameter] = fMCMCxvect[j][parameter];
+                        // save the probability of the point
+                        fMCMCprob[index_chain[j]] = *buff[j];
+                        fMCMCLogLikelihood[index_chain[j]] = fMCMCLogLikelihood_Provisional[index_chain[j]];
+                        fMCMCLogPrior[index_chain[j]] = fMCMCLogPrior_Provisional[index_chain[j]];
+                        
+                        accept = true;
+                    } else {
+                        // decrease efficiency
+                        fMCMCStatistics[index_chain[j]].efficiency[parameter] *= 1.*fMCMCStatistics[index_chain[j]].n_samples_efficiency / (fMCMCStatistics[index_chain[j]].n_samples_efficiency + 1.);
+                    }
+                } else {						// new log(likelihood) was not a finite number
+                    //BCLog::OutDebug(Form("Log(likelihood) evaluated to nan or inf in chain %i while varying parameter %s to %.3e", chain, GetParameter(parameter).GetName().data(), fMCMCThreadLocalStorage[chain].xLocal[parameter]));
+                    // decrease efficiency
+                    fMCMCStatistics[index_chain[j]].efficiency[parameter] *= 1.*fMCMCStatistics[index_chain[j]].n_samples_efficiency / (fMCMCStatistics[index_chain[j]].n_samples_efficiency + 1.);
+                    accept = false;
+                    // print parameter point
+                }
+                // execute user code for every point
+                MCMCCurrentPointInterface(fMCMCxvect[j], index_chain[j], accept);
+            }
+            iproc = 0;
+            fMCMCxvect.clear();
+        } else {
+            mychain++;
+            if (mychain < fMCMCNChains) continue;
+            else last = true;
+            accept = false;
         }
+        // execute user code for every point
+        MCMCCurrentPointInterface(fMCMCThreadLocalStorage[mychain].xLocal, mychain, accept);
     }
-
-    // execute user code
-    MCMCCurrentPointInterface(fMCMCThreadLocalStorage[chain].xLocal, chain, false);
-    return false;
+    delete sendbuff[0];
+    delete [] sendbuff;
+    delete [] recvbuff;
+    delete buff[0];
+    delete [] buff;
+    
+    return true;
 }
 
 // --------------------------------------------------------
-bool BCEngineMCMC::GetNewPointMetropolis(unsigned chain)
+bool BCEngineMCMC::GetNewPointMetropolisAllChains()
 {
-    // increase counter
-    fMCMCNIterations[chain]++;
-
-    // get proposal point
-    if ( GetProposalPointMetropolis(chain, fMCMCThreadLocalStorage[chain].xLocal) ) {
-        // calculate probabilities of the old and new points
-        double p0 = (std::isfinite(fMCMCprob[chain])) ? fMCMCprob[chain] : -std::numeric_limits<double>::max();
-        double p1 = LogEval(fMCMCThreadLocalStorage[chain].xLocal);
-
-        if (std::isfinite(p1)) {
-            // if the new point is more probable, keep it; or else throw dice
-            if ( p1 >= p0 || log(fMCMCThreadLocalStorage[chain].rng->Rndm()) < (p1 - p0) ) {
-                // increase efficiency
-                fMCMCStatistics[chain].efficiency[0] += (1. - fMCMCStatistics[chain].efficiency[0]) / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
-
-                // copy the point
-                fMCMCx[chain] = fMCMCThreadLocalStorage[chain].xLocal;
-                // save the probability of the point
-                fMCMCprob[chain] = p1;
-                fMCMCLogLikelihood[chain] = fMCMCLogLikelihood_Provisional[chain];
-                fMCMCLogPrior[chain] = fMCMCLogPrior_Provisional[chain];
-
-                // execute user code
-                MCMCCurrentPointInterface(fMCMCThreadLocalStorage[chain].xLocal, chain, true);
-                return true;
-            } else {
-                // decrease efficiency
-                fMCMCStatistics[chain].efficiency[0] *= 1.*fMCMCStatistics[chain].n_samples_efficiency / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
+    unsigned mychain = 0;
+    int iproc = 0;
+    unsigned npars = fParameters.Size();
+    int buffsize = npars + 1;
+    double p0[procnum];
+    int index_chain[procnum];
+    double *recvbuff = new double[buffsize];
+    std::vector<double> pars;
+    double **buff;
+    
+    
+    //------------------
+    buff = new double*[procnum];
+    buff[0]=new double[procnum];
+    for(int i=1;i<procnum;i++) buff[i]=buff[i-1]+1;
+    //------------------
+    
+    double ** sendbuff = new double *[procnum];
+    sendbuff[0] = new double[procnum * buffsize];
+    for (int il = 1; il < procnum; il++)
+        sendbuff[il] = sendbuff[il - 1] + buffsize;
+    
+    
+    double ll;
+    std::vector<std::vector<double> > fMCMCxvect;
+    bool last = false;
+    
+    
+    while (mychain < fMCMCNChains) {
+        
+        bool accept = false;
+        // increase counter
+        fMCMCNIterations[mychain]++;
+        UpdateChainIndex(mychain);
+        
+        // get proposal point
+        if ( GetProposalPointMetropolis(mychain, fMCMCThreadLocalStorage[mychain].xLocal) ) {
+            
+            if (!last) {
+                // calculate probabilities of the old and new points
+                p0[iproc] = (std::isfinite(fMCMCprob[mychain])) ? fMCMCprob[mychain] : -std::numeric_limits<double>::max();
+                fMCMCxvect.push_back(fMCMCThreadLocalStorage[mychain].xLocal);
+                index_chain[iproc] = mychain;
+                iproc++;
+                mychain++;
+                if (iproc < procnum && mychain < fMCMCNChains) continue;
+            } else if (iproc == 0) break;
+            
+            for(int unsigned il = 0; il < fMCMCxvect.size() ; il++) {
+                //The first entry of the array specifies the task to be executed.
+                sendbuff[il][0] = 1.; // 1 = likelihood calculation
+                for (int im = 1; im < buffsize; im++) sendbuff[il][im] = fMCMCxvect[il][im-1];
             }
-        } else { // new log(likelihood) was not a finite number
-            BCLog::OutDebug("LogEval is nan or inf at ");
-            PrintParameters(fMCMCThreadLocalStorage[chain].xLocal, BCLog::OutDebug);
-            // decrease efficiency
-            fMCMCStatistics[chain].efficiency[0] *= 1.*fMCMCStatistics[chain].n_samples_efficiency / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
+            
+            for(int il = fMCMCxvect.size() ; il < procnum; il++) sendbuff[il][0] = 0.; // 0 = nothing to execute
+            
+            MPI::COMM_WORLD.Scatter(sendbuff[0], buffsize, MPI::DOUBLE, recvbuff, buffsize, MPI::DOUBLE, 0);
+            
+            if (recvbuff[0] == 1.) {
+                pars.assign(recvbuff + 1, recvbuff + buffsize);
+                ll = LogEval(pars);
+            } else
+                ll = log(0.);
+            
+            //        double calctime = MPI::Wtime() - inittime;
+            //        inittime = MPI::Wtime();
+            MPI::COMM_WORLD.Gather(&ll, 1, MPI::DOUBLE, buff[0], 1, MPI::DOUBLE, 0);
+            
+            //double p1 = LogEval(fMCMCThreadLocalStorage[chain].xLocal);
+            for (int unsigned j = 0; j < fMCMCxvect.size(); j++) {
+                
+                if (std::isfinite(*buff[j])) {
+                    // if the new point is more probable, keep it; or else throw dice
+                    if ( *buff[j] >= p0[j] || log(fMCMCThreadLocalStorage[index_chain[j]].rng->Rndm()) < (*buff[j] - p0[j]) ) {
+                        // increase efficiency
+                        fMCMCStatistics[index_chain[j]].efficiency[0] += (1. - fMCMCStatistics[index_chain[j]].efficiency[0]) / (fMCMCStatistics[index_chain[j]].n_samples_efficiency + 1.);
+                        // copy the point
+                        fMCMCx[index_chain[j]] = fMCMCxvect[j];
+                        // save the probability of the point
+                        fMCMCprob[index_chain[j]] = *buff[j];
+                        fMCMCLogLikelihood[index_chain[j]] = fMCMCLogLikelihood_Provisional[index_chain[j]];
+                        fMCMCLogPrior[index_chain[j]] = fMCMCLogPrior_Provisional[index_chain[j]];
+                        
+                        accept = true;
+                    } else {
+                        // decrease efficiency
+                        fMCMCStatistics[index_chain[j]].efficiency[0] *= 1.*fMCMCStatistics[index_chain[j]].n_samples_efficiency / (fMCMCStatistics[index_chain[j]].n_samples_efficiency + 1.);
+                    }
+                } else {						// new log(likelihood) was not a finite number
+                    //BCLog::OutDebug(Form("Log(likelihood) evaluated to nan or inf in chain %i while varying parameter %s to %.3e", chain, GetParameter(parameter).GetName().data(), fMCMCThreadLocalStorage[chain].xLocal[parameter]));
+                    // decrease efficiency
+                    fMCMCStatistics[index_chain[j]].efficiency[0] *= 1.*fMCMCStatistics[index_chain[j]].n_samples_efficiency / (fMCMCStatistics[index_chain[j]].n_samples_efficiency + 1.);
+                    accept = false;
+                    // print parameter point
+                }
+                // execute user code for every point
+                MCMCCurrentPointInterface(fMCMCxvect[j], index_chain[j], accept);
+            }
+            iproc = 0;
+            fMCMCxvect.clear();
+        } else {
+            mychain++;
+            if (mychain < fMCMCNChains) continue;
+            else last = true;
+            accept = false;
         }
+        // execute user code for every point
+        MCMCCurrentPointInterface(fMCMCThreadLocalStorage[mychain].xLocal, mychain, accept);
     }
-
-    // execute user code for every point
-    MCMCCurrentPointInterface(fMCMCThreadLocalStorage[chain].xLocal, chain, false);
-    return false;
+    delete sendbuff[0];
+    delete [] sendbuff;
+    delete [] recvbuff;
+    delete buff[0];
+    delete [] buff;
+    
+    return true;
 }
 
 //--------------------------------------------------------
@@ -1592,10 +1759,11 @@ bool BCEngineMCMC::GetNewPointMetropolis()
 
             //loop over chains
             #pragma omp parallel for shared(chunk) private(ichain) schedule(static, chunk)
-            for (unsigned ichain = 0; ichain < fMCMCNChains; ++ichain) {
-                UpdateChainIndex(ichain);
-                return_value *= GetNewPointMetropolis(ichain, ipar);
-            }
+            //for (unsigned ichain = 0; ichain < fMCMCNChains; ++ichain) {
+                //UpdateChainIndex(ichain);
+            return_value *= GetNewPointMetropolisAllChains(ipar);
+                //return_value *= GetNewPointMetropolis(ichain, ipar);
+            //}
         }
 
     } else {
@@ -1603,10 +1771,10 @@ bool BCEngineMCMC::GetNewPointMetropolis()
 
         //loop over chains
         #pragma omp parallel for shared(chunk) private(ichain) schedule(static, chunk)
-        for (unsigned ichain = 0; ichain < fMCMCNChains; ++ichain) {
-            UpdateChainIndex(ichain);
-            return_value *= GetNewPointMetropolis(ichain);
-        }
+        //for (unsigned ichain = 0; ichain < fMCMCNChains; ++ichain) {
+            //UpdateChainIndex(ichain);
+        return_value *= GetNewPointMetropolisAllChains();
+        //}
     }
 
     // leave with an empty thread->chain map
