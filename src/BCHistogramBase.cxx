@@ -194,7 +194,7 @@ void BCHistogramBase::SetHistogram(const TH1* const hist)
         return;
     }
 
-    fHistogram = (TH1*) (hist->Clone(Form("%s_bch", hist->GetName())));
+    fHistogram = (TH1*) (hist->Clone(Form("%s", hist->GetName())));
     fHistogram->SetStats(false);
     fDimension = fHistogram->GetDimension();
 
