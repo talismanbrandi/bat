@@ -144,6 +144,10 @@ void BCH2D::DrawBands(const std::string& options)
     if (fBandFillStyle <= 0) {
         GetHistogram()->SetLineColor(GetLineColor());
         GetHistogram()->Draw((options + "cont2").data());
+    } else if (fBandFillStyle == 1001) {
+        gStyle->SetPalette(colors.size(), &colors[0]);
+        GetHistogram()->SetFillStyle(fBandFillStyle);
+        GetHistogram()->Draw((options + "col").data());
     } else {
         gStyle->SetPalette(colors.size(), &colors[0]);
         GetHistogram()->SetFillStyle(fBandFillStyle);
