@@ -1,18 +1,18 @@
 #ifndef __BCMTFTEMPLATE__H
 #define __BCMTFTEMPLATE__H
 
-/*!
- * \class BCMTFTemplate
- * \brief A class describing a template
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.1
- * \date 06.2012
- * \detail This class describes a template.
+/**
+ * @class BCMTFTemplate
+ * @brief A class describing a template
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.1
+ * @date 06.2012
+ * @details This class describes a template.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -39,7 +39,7 @@ public:
     /**
      * The default constructor.
      * @param channelname The name of the channel.
-     * @param process name The name of the process. */
+     * @param processname The name of the process. */
     BCMTFTemplate(const std::string& channelname, const std::string& processname);
 
     /**
@@ -178,4 +178,3 @@ private:
 // ---------------------------------------------------------
 
 #endif
-

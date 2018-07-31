@@ -7,13 +7,9 @@ CLEANFILES = \
 MAINTAINERCLEANFILES = Makefile.in
 
 AM_CXXFLAGS = $(ROOTAUXCFLAGS) -I$(top_srcdir) $(ROOTCFLAGS)
+AM_CXXFLAGS += @AM_CXXFLAGS@
 
-if DEBUG
-AM_CXXFLAGS += -g -O0 -Wall -Wextra -pedantic -Wno-long-long -Wno-unknown-pragmas
-else
-AM_CXXFLAGS += -O2 -Wno-unknown-pragmas
-endif
-AM_LDFLAGS = -L$(ROOTLIBDIR)
+AM_LDFLAGS = $(ROOTLIBDIRFLAGS)
 
 noinst_LIBRARIES = libBATtest.a
 
@@ -28,6 +24,8 @@ TESTS = \
 	test.TEST \
 	BCAux.TEST \
 	BCEngineMCMC.TEST \
+	BCFitter.TEST \
+	BCHistogram.TEST \
 	BCMath.TEST \
 	BCModel.TEST \
 	BCParameter.TEST \
@@ -41,8 +39,10 @@ TESTS = \
 # The order is determined because parallel and BCSummaryTool also run Markov chains
 # and we want BCEngineMCMC to test that feature first.
 if THREAD_PARALLELIZATION
-BCSummaryTool.log : BCEngineMCMC.log
-parallel.log : BCSummaryTool.log
+parallel.log : BCEngineMCMC.log
+BCModel.log : parallel.log
+BCSummaryTool.log : BCModel.log
+BCFitter.log : BCSummaryTool.log
 endif
 
 LDADD = \
@@ -59,6 +59,10 @@ test_TEST_SOURCES = test_TEST.cxx
 BCAux_TEST_SOURCES = BCAux_TEST.cxx
 
 BCEngineMCMC_TEST_SOURCES = BCEngineMCMC_TEST.cxx
+
+BCFitter_TEST_SOURCES = BCFitter_TEST.cxx
+
+BCHistogram_TEST_SOURCES = BCHistogram_TEST.cxx
 
 BCMath_TEST_SOURCES = BCMath_TEST.cxx
 

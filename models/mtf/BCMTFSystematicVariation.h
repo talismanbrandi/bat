@@ -1,19 +1,19 @@
 #ifndef __BCMTFSYSTEMATICVARIATION__H
 #define __BCMTFSYSTEMATICVARIATION__H
 
-/*!
- * \class BCMTFSystematicVariation
- * \brief A class describing a systematic variation.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.1
- * \date 06.2012
- * \detail This class describes the impact of a systematic
+/**
+ * @class BCMTFSystematicVariation
+ * @brief A class describing a systematic variation.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.1
+ * @date 06.2012
+ * @details This class describes the impact of a systematic
  * uncertainty.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -149,4 +149,3 @@ private:
 // ---------------------------------------------------------
 
 #endif
-

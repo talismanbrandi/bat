@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -64,6 +64,15 @@ double GaussModel::LogLikelihood(const std::vector<double>& parameters)
     return logprob;
 }
 
+// ---------------------------------------------------------
+void GaussModel::CalculateObservables(const std::vector<double>& parameters)
+{
+    for (unsigned i = 0; i < GetNObservables(); ++i) {
+        GetObservable(i).Value(3.5 * parameters[0]);
+    }
+}
+
+// ---------------------------------------------------------
 double GaussModel::evidence() const
 {
     // integrate over normalized Gaussian likelihood

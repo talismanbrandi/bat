@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -43,7 +43,7 @@ double BCConstantPrior::GetMode(double xmin, double xmax)
     if (r == BCAux::kReverseRange)
         return GetMode(xmax, xmin);
 
-    if (r == BCAux::kFiniteRange or r == BCAux::kEmptyRange)
+    if (r == BCAux::kFiniteRange || r == BCAux::kEmptyRange)
         return 0.5 * (xmin + xmax);
 
     if (r == BCAux::kInfiniteRange)
@@ -92,7 +92,5 @@ double BCConstantPrior::GetRandomValue(double xmin, double xmax, TRandom* const 
 {
     if (!R)
         return std::numeric_limits<double>::quiet_NaN();
-    return xmin + R->Rndm() * xmax;
+    return xmin + R->Rndm() * (xmax - xmin);
 }
-
-

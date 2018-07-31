@@ -14,9 +14,6 @@
 
 int main()
 {
-    // set nice style for drawing than the ROOT default
-    BCAux::SetStyle();
-
     // open log file with default level of logging
     BCLog::OpenLog("log.txt", BCLog::detail, BCLog::summary);
 
@@ -95,7 +92,7 @@ int main()
     for (unsigned i = 0; i < mgr.GetNModels(); ++i) {
         BCModel* m = mgr.GetModel(i);
         // find mode, starting from global mode found by marginalizing
-        m->FindMode(m->GetBestFitParameters());
+        m->FindMode();
         // write distrubutions to .root file
         m->WriteMarginalizedDistributions(m->GetSafeName() + "_plots.root", "RECREATE");
         // write distributions to .pdf file

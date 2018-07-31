@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -12,7 +12,6 @@
 #include "BCFitter.h"
 
 #include <BAT/BCDataPoint.h>
-#include <BAT/BCDataSet.h>
 #include <BAT/BCH1D.h>
 #include <BAT/BCLog.h>
 #include <BAT/BCModel.h>
@@ -34,7 +33,11 @@ BCFitter::BCFitter(const TF1& f, const std::string& name)
       fFitFunctionIndexY(-1),
       fErrorBandContinuous(true),
       fErrorBandNbinsX(100),
-      fErrorBandNbinsY(500)
+      fErrorBandNbinsY(500),
+      fErrorBandExtensionLowEdgeX(0),
+      fErrorBandExtensionUpEdgeX(0),
+      fErrorBandExtensionLowEdgeY(0),
+      fErrorBandExtensionUpEdgeY(0)
 {
     if (f.GetNdim() != 1)
         throw std::invalid_argument("BCFitter and descendants only support 1D problems");
@@ -91,16 +94,29 @@ void BCFitter::MarginalizePreprocess()
 
     if (GetDataSet() && fFitFunctionIndexX >= 0 && fFitFunctionIndexY >= 0) {
 
-        dx = GetDataSet()->GetRangeWidth(fFitFunctionIndexX) / fErrorBandNbinsX;
-        dy = GetDataSet()->GetRangeWidth(fFitFunctionIndexY) / fErrorBandNbinsY;
+        dx = (GetDataSet()->GetRangeWidth(fFitFunctionIndexX)
+              + fErrorBandExtensionLowEdgeX
+              + fErrorBandExtensionUpEdgeX)
+             / fErrorBandNbinsX;
+
+
+        dy = (GetDataSet()->GetRangeWidth(fFitFunctionIndexY)
+              + fErrorBandExtensionLowEdgeY
+              + fErrorBandExtensionUpEdgeY)  / fErrorBandNbinsY;
+
+        double xRangeLow = GetDataSet()->GetLowerBound(fFitFunctionIndexX) - fErrorBandExtensionLowEdgeX - dx / 2;
+        double xRangeHigh = GetDataSet()->GetUpperBound(fFitFunctionIndexX) + fErrorBandExtensionUpEdgeX + dx / 2;
+
+        double yRangeLow = GetDataSet()->GetLowerBound(fFitFunctionIndexY) - fErrorBandExtensionLowEdgeY - dy / 2;
+        double yRangeHigh = GetDataSet()->GetUpperBound(fFitFunctionIndexY) + fErrorBandExtensionUpEdgeY + dy / 2;
 
         fErrorBandXY = TH2D(TString::Format("errorbandxy_%s", GetSafeName().data()), "",
                             fErrorBandNbinsX,
-                            GetDataSet()->GetLowerBound(fFitFunctionIndexX) - dx / 2,
-                            GetDataSet()->GetUpperBound(fFitFunctionIndexX) + dx / 2,
+                            xRangeLow,
+                            xRangeHigh,
                             fErrorBandNbinsY,
-                            GetDataSet()->GetLowerBound(fFitFunctionIndexY) - dy / 2,
-                            GetDataSet()->GetUpperBound(fFitFunctionIndexY) + dy / 2);
+                            yRangeLow,
+                            yRangeHigh);
         fErrorBandXY.SetStats(kFALSE);
 
         // why are we doing this?
@@ -181,12 +197,6 @@ double BCFitter::Integral(const std::vector<double>& params, const double xmin, 
 {
     TF1& f = GetFitFunction();
 
-    // set the parameters of the function
-    // passing the pointer to first element of the vector is
-    // not completely safe as there might be an implementation where
-    // the vector elements are not stored consecutively in memory.
-    // however it is much faster than copying the contents, especially
-    // for large number of parameters
     f.SetParameters(&params[0]);
 
     // use ROOT's TH1::Integral method
@@ -244,14 +254,17 @@ TGraph* BCFitter::GetErrorBandGraph(double level1, double level2) const
     TGraph* graph = new TGraph(2 * nx);
     graph->SetFillStyle(1001);
     graph->SetFillColor(kYellow);
+    graph->SetLineWidth(0);
 
     // get error bands
     std::vector<double> ymin = GetErrorBand(level1);
     std::vector<double> ymax = GetErrorBand(level2);
 
     for (int i = 0; i < nx; i++) {
-        graph->SetPoint(i, fErrorBandXY.GetXaxis()->GetBinCenter(i + 1), ymin[i]);
-        graph->SetPoint(nx + i, fErrorBandXY.GetXaxis()->GetBinCenter(nx - i), ymax[nx - i - 1]);
+        graph->SetPoint(i, fErrorBandXY.GetXaxis()->GetBinCenter(i + 1),
+                        ymin[i] * GraphCorrection(i + 1));
+        graph->SetPoint(nx + i, fErrorBandXY.GetXaxis()->GetBinCenter(nx - i),
+                        ymax[nx - i - 1] * GraphCorrection(i + 1));
     }
 
     return graph;
@@ -282,23 +295,22 @@ TH2* BCFitter::GetGraphicalErrorBandXY(double level, int nsmooth, bool overcover
     return hist_tempxy;
 }
 
+
 // ---------------------------------------------------------
 TGraph* BCFitter::GetFitFunctionGraph(const std::vector<double>& parameters)
 {
     // define new graph
-    int nx = fErrorBandXY.GetNbinsX();
+    const int nx = fErrorBandXY.GetNbinsX();
     TGraph* graph = new TGraph(nx);
+
+    std::vector<double> xvec(1);
 
     // loop over x values
     for (int i = 0; i < nx; i++) {
-        double x = fErrorBandXY.GetXaxis()->GetBinCenter(i + 1);
+        xvec[0] = fErrorBandXY.GetXaxis()->GetBinCenter(i + 1);
+        const double y = FitFunction(xvec, parameters) * GraphCorrection(i + 1);
 
-        std::vector<double> xvec;
-        xvec.push_back(x);
-        double y = FitFunction(xvec, parameters);
-        xvec.clear();
-
-        graph->SetPoint(i, x, y);
+        graph->SetPoint(i, xvec[0], y);
     }
 
     return graph;
@@ -311,17 +323,14 @@ TGraph* BCFitter::GetFitFunctionGraph(const std::vector<double>& parameters, dou
     TGraph* graph = new TGraph(n + 1);
 
     double dx = (xmax - xmin) / (double) n;
+    std::vector<double> xvec(1);
 
     // loop over x values
     for (int i = 0; i <= n; i++) {
-        double x = (double) i * dx + xmin;
-        std::vector<double> xvec;
-        xvec.push_back(x);
-        double y = FitFunction(xvec, parameters);
+        xvec[0] = (double) i * dx + xmin;
+        const double y = FitFunction(xvec, parameters) * GraphCorrection(i + 1);
 
-        xvec.clear();
-
-        graph->SetPoint(i, x, y);
+        graph->SetPoint(i, xvec[0], y);
     }
 
     return graph;
@@ -349,20 +358,4 @@ void BCFitter::SetErrorBandContinuous(bool flag)
 
     // copy data x-values
     fErrorBandX = fDataSet->GetDataComponents(fFitFunctionIndexX);
-}
-
-// ---------------------------------------------------------
-void BCFitter::CopyHist(const TH1& source, TH1D& dest)
-{
-    std::vector<double> bins(source.GetNbinsX() + 1);
-    source.GetXaxis()->GetLowEdge(&bins[0]);
-    // now add the overflow left edge
-    bins.back() = source.GetXaxis()->GetXmax();
-    dest = TH1D(source.GetName(),
-                Form("%s;%s;%s", source.GetTitle(), source.GetXaxis()->GetTitle(), source.GetYaxis()->GetTitle()),
-                source.GetNbinsX(), &bins[0]);
-    // copy contents (include underflow and overflow)
-    for (int i = 0; i <= source.GetNbinsX() + 1; ++i) {
-        dest.SetBinContent(i, source.GetBinContent(i));
-    }
 }

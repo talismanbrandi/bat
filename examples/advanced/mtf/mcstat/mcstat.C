@@ -27,11 +27,8 @@
 // Below are the includes needed for compilation of the macro
 // the #if ... #endif directives around the includes allow to
 // run the macro in both normal and compiled mode.
-#define COMPILER (!defined(__CINT__) && !defined(__CLING__))
+#if defined(__MAKECINT__) || defined(__ROOTCLING__) || (!defined(__CINT__) && !defined(__CLING__))
 
-#if defined(__MAKECINT__) || defined(__ROOTCLING__) || COMPILER
-
-#include <BAT/BCAux.h>
 #include <BAT/BCEngineMCMC.h>
 #include <BAT/BCGaussianPrior.h>
 #include <BAT/BCLog.h>
@@ -51,14 +48,8 @@
 
 void mcstat()
 {
-    // ---- set style and open log files ---- //
-
     // open log file
-    BCLog::OpenLog("log.txt");
-    BCLog::SetLogLevel(BCLog::detail);
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
+    BCLog::OpenLog("log.txt", BCLog::detail);
 
     // ---- read histograms from a file ---- //
 

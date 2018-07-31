@@ -29,16 +29,13 @@
 // Below are the includes needed for compilation of the macro
 // the #if ... #endif directives around the includes allow to
 // run the macro in both normal and compiled mode.
-#define COMPILER (!defined(__CINT__) && !defined(__CLING__))
-
-#if defined(__MAKECINT__) || defined(__ROOTCLING__) || COMPILER
+#if defined(__MAKECINT__) || defined(__ROOTCLING__) || (!defined(__CINT__) && !defined(__CLING__))
 
 #include <TGraphErrors.h>
 #include <TF1.h>
 #include <TCanvas.h>
 #include <TRandom3.h>
 
-#include <BAT/BCAux.h>
 #include <BAT/BCLog.h>
 #include <BAT/BCGraphFitter.h>
 
@@ -54,9 +51,6 @@ void graphFitterSimpleExample()
 {
     // open log file
     BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
 
     // -------------------------
     // define a fit function, also used to create data

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -13,7 +13,6 @@
 #include "BCHistogramFitter.h"
 
 #include <BAT/BCDataPoint.h>
-#include <BAT/BCDataSet.h>
 #include <BAT/BCLog.h>
 #include <BAT/BCMath.h>
 
@@ -34,13 +33,7 @@ BCHistogramFitter::BCHistogramFitter(const TH1& hist, const TF1& func, const std
     if (hist.GetDimension() != 1)
         throw std::invalid_argument("Only 1D histograms supported");
 
-    // Unfortunately the Copy() method is not public in very old versions of ROOT.
-    // But the workaround is good enough for our purposes.
-#if ROOTVERSION >= 5034019
     hist.Copy(fHistogram);
-#else
-    BCFitter::CopyHist(hist, fHistogram);
-#endif
 
     // create data points and add them to the data set.
     // the x value is the lower edge of the bin, and
@@ -69,19 +62,13 @@ BCHistogramFitter::BCHistogramFitter(const TH1& hist, const TF1& func, const std
 }
 
 // ---------------------------------------------------------
-BCHistogramFitter::~BCHistogramFitter() {}
-
-// ---------------------------------------------------------
 double BCHistogramFitter::LogLikelihood(const std::vector<double>& params)
 {
     // initialize probability
     double loglikelihood = 0;
 
-    // get the number of bins
-    int nbins = fHistogram.GetNbinsX();
-
     // loop over all bins
-    for (int ibin = 1; ibin <= nbins; ++ibin) {
+    for (int ibin = 1; ibin <= fHistogram.GetNbinsX(); ++ibin) {
         // get bin edges and integrate for expectation
         const double xmin = fHistogram.GetXaxis()->GetBinLowEdge(ibin);
         const double xmax = fHistogram.GetXaxis()->GetBinUpEdge(ibin);
@@ -165,7 +152,7 @@ void BCHistogramFitter::DrawFit(const std::string& options, bool flaglegend)
 }
 
 // ---------------------------------------------------------
-bool BCHistogramFitter::CalculatePValueFast(const std::vector<double>& pars, unsigned nIterations)
+double BCHistogramFitter::CalculatePValueFast(const std::vector<double>& pars, unsigned nIterations)
 {
     // check size of parameter vector
     if (pars.size() != GetNParameters()) {
@@ -182,18 +169,12 @@ bool BCHistogramFitter::CalculatePValueFast(const std::vector<double>& pars, uns
         expected[ibin] = Integral(pars, fHistogram.GetBinLowEdge(ibin + 1), fHistogram.GetBinLowEdge(ibin + 2));
     }
 
-    // create pseudo experiments
     fPValue = BCMath::FastPValue(observed, expected, nIterations, fRandom.GetSeed());
-
-    // correct for fitting bias
-    fPValueNDoF = BCMath::CorrectPValue(fPValue, GetNParameters(), fHistogram.GetNbinsX());
-
-    // no error
-    return true;
+    return fPValue;
 }
 
 // ---------------------------------------------------------
-bool BCHistogramFitter::CalculatePValueLikelihood(const std::vector<double>& pars)
+double BCHistogramFitter::CalculatePValueLikelihood(const std::vector<double>& pars)
 {
     // initialize test statistic -2*lambda
     double logLambda = 0.0;
@@ -218,14 +199,11 @@ bool BCHistogramFitter::CalculatePValueLikelihood(const std::vector<double>& par
 
     //p value from chi^2 distribution, returns zero if logLambda < 0
     fPValue = TMath::Prob(logLambda, GetNDataPoints());
-    fPValueNDoF = TMath::Prob(logLambda, GetNDoF());
-
-    // no error
-    return true;
+    return fPValue;
 }
 
 // ---------------------------------------------------------
-bool BCHistogramFitter::CalculatePValueLeastSquares(const std::vector<double>& pars, bool weightExpect)
+double BCHistogramFitter::CalculatePValueLeastSquares(const std::vector<double>& pars, bool weightExpect)
 {
     // initialize test statistic chi^2
     double chi2 = 0.0;
@@ -251,8 +229,11 @@ bool BCHistogramFitter::CalculatePValueLeastSquares(const std::vector<double>& p
 
     // p value from chi^2 distribution
     fPValue = TMath::Prob(chi2, GetNDataPoints());
-    fPValueNDoF = TMath::Prob(chi2, GetNDataPoints() - GetNParameters());
+    return fPValue;
+}
 
-    // no error
-    return true;
+// ---------------------------------------------------------
+double BCHistogramFitter::GraphCorrection(unsigned ibin) const
+{
+    return fHistogram.GetXaxis()->GetBinUpEdge(ibin) - fHistogram.GetXaxis()->GetBinLowEdge(ibin);
 }

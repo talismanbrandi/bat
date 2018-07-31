@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -23,7 +23,9 @@ void check_efficiency(const GaussModel& m, double efficiency)
         TEST_CHECK_FAILED(stringify(efficiency) + " larger than required " + stringify(m.GetMaximumEfficiency()));
 }
 
-GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_limits<double>::infinity())
+GaussModel* gauss_check(bool multivariate_proposal,
+                        double fix = std::numeric_limits<double>::infinity(),
+                        bool zero_range = false)
 {
     /* set up model */
     const bool fixLast = (fix != std::numeric_limits<double>::infinity());
@@ -35,11 +37,19 @@ GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_li
     static const unsigned ntotal = 5;
     GaussModel& m = *new GaussModel(name.c_str(), ntotal);
 
+    // before any chains are run, get an empty vector
+    TEST_CHECK_EQUAL(m.GetBestFitParameters().size(), 0);
+    TEST_CHECK_EQUAL(m.GetBestFitParameterErrors().size(), 0);
+
     // Fix the last parameter so comparison below is simpler to code
     // keep track of free and total number of parameters
     unsigned nfree = ntotal;
     if (fixLast) {
-        m.GetParameter(ntotal - 1).Fix(fix);
+        BCParameter& p = m.GetParameter(ntotal - 1);
+        if (zero_range) {
+            p.SetLimits(fix, fix);
+        } else
+            p.Fix(fix);
         --nfree;
     }
     TEST_CHECK_EQUAL(m.GetNParameters(), ntotal);
@@ -91,10 +101,13 @@ GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_li
         // mean etc. are per parameter
         TEST_CHECK_EQUAL(s[j].mean.size(), m.GetNParameters());
         TEST_CHECK_EQUAL(s[j].variance.size(), m.GetNParameters());
+        TEST_CHECK_EQUAL(s[j].stderrpar.size(), m.GetNParameters());
+        TEST_CHECK_EQUAL(s[j].stderrobs.size(), 0);
         TEST_CHECK_EQUAL(s[j].covariance.size(), m.GetNParameters());
         TEST_CHECK_EQUAL(s[j].minimum.size(), m.GetNParameters());
         TEST_CHECK_EQUAL(s[j].maximum.size(), m.GetNParameters());
-        TEST_CHECK_EQUAL(s[j].mode.size(), m.GetNParameters());
+        TEST_CHECK_EQUAL(s[j].modepar.size(), m.GetNParameters());
+        TEST_CHECK_EQUAL(s[j].modeobs.size(), 0);
         TEST_CHECK_EQUAL(s[j].efficiency.size(), m.GetNParameters());
         for (unsigned i = 0; i < m.GetNFreeParameters(); ++i) {
             /* compare to values set inside gauss model' likelihood */
@@ -123,7 +136,10 @@ GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_li
                     TEST_CHECK_NEARLY_EQUAL(s[j].covariance[i][k], 0.0, 2);
 
             // mcmc not a great mode finder => large uncertainty
-            TEST_CHECK_NEARLY_EQUAL(s[j].mode[i], 0, 1);
+            TEST_CHECK_NEARLY_EQUAL(s[j].modepar[i], 0, 1);
+
+            // but MCMC should find errors ok
+            TEST_CHECK_NEARLY_EQUAL(s[j].stderrpar[i], 1, 0.03);
 
             if (!multivariate_proposal)
                 check_efficiency(m, s[j].efficiency[i]);
@@ -135,7 +151,8 @@ GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_li
             TEST_CHECK_EQUAL(s[j].variance.back(), 0.0);
             TEST_CHECK_EQUAL(s[j].minimum.back(), fix);
             TEST_CHECK_EQUAL(s[j].maximum.back(), fix);
-            TEST_CHECK_EQUAL(s[j].mode.back(), fix);
+            TEST_CHECK_EQUAL(s[j].modepar.back(), fix);
+            TEST_CHECK_EQUAL(s[j].stderrpar.back(), 0.0);
             TEST_CHECK_EQUAL(s[j].efficiency.back(), 0.0);
 
             continue;
@@ -155,7 +172,8 @@ GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_li
     TEST_CHECK_EQUAL(S.covariance.size(), m.GetNParameters());
     TEST_CHECK_EQUAL(S.minimum.size(), m.GetNParameters());
     TEST_CHECK_EQUAL(S.maximum.size(), m.GetNParameters());
-    TEST_CHECK_EQUAL(S.mode.size(), m.GetNParameters());
+    TEST_CHECK_EQUAL(S.modepar.size(), m.GetNParameters());
+    TEST_CHECK_EQUAL(S.modeobs.size(), 0);
     TEST_CHECK_EQUAL(S.efficiency.size(), m.GetNParameters());
     for (unsigned i = 0; i < m.GetNFreeParameters(); ++i) {
         /* compare to values set inside gauss model' likelihood */
@@ -189,7 +207,7 @@ GaussModel* gauss_check(bool multivariate_proposal, double fix = std::numeric_li
         TEST_CHECK(S.minimum[i] > -cut);
 
         // mcmc not a great mode finder => large uncertainty
-        TEST_CHECK_NEARLY_EQUAL(S.mode[i], 0, 0.4);
+        TEST_CHECK_NEARLY_EQUAL(S.modepar[i], 0, 0.4);
 
         // 23.8% is "optimal" acceptance rate for Gaussian target in high dimensions
         // and Gaussian proposal
@@ -223,8 +241,17 @@ public:
                      GaussModel* m = ::gauss_check(true);
                      delete m;
                     );
-        TEST_SECTION("multivariate, fix one",
+        TEST_SECTION("multivariate, fix last",
                      GaussModel* m = ::gauss_check(true, 1.1);
+                     delete m;
+                    );
+        static const bool zero_range = true;
+        TEST_SECTION("multivariate, zero par range",
+                     GaussModel* m = ::gauss_check(true, 1.1, zero_range);
+                     delete m;
+                    );
+        TEST_SECTION("factorized, zero par range",
+                     GaussModel* m = ::gauss_check(false, 1.1, zero_range);
                      delete m;
                     );
     }
@@ -272,7 +299,3 @@ public:
     }
 } rvalue_test;
 #endif
-
-// Local Variables:
-// compile-command: "make check TESTS= && (./BCEngineMCMC.TEST || cat test-suite.log)"
-// End:

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -44,7 +44,7 @@ double BCSplitGaussianPrior::GetLogPrior(double x)
 // ---------------------------------------------------------
 double BCSplitGaussianPrior::GetRawMoment(unsigned n, double xmin, double xmax)
 {
-    if (n == 0 or n > 2)
+    if (n == 0 || n > 2)
         return BCPrior::GetRawMoment(n, xmin, xmax);
 
     BCAux::BCRange r = BCAux::RangeType(xmin, xmax);
@@ -110,4 +110,3 @@ double BCSplitGaussianPrior::GetIntegral(double xmin, double xmax)
 
     return (smax * erf_max - smin * erf_min) / (fSigmaAbove + fSigmaBelow);
 }
-

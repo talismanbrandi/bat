@@ -1,20 +1,20 @@
 #ifndef __BCPARAMETER__H
 #define __BCPARAMETER__H
 
-/*!
- * \class BCParameter
- * \brief A class representing a parameter of a model.
- * \author Daniel Greenwald
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.0
- * \date 08.2008
- * \detail This class represents a parameter of a model. It contains
+/**
+ * @class BCParameter
+ * @brief A class representing a parameter of a model.
+ * @author Daniel Greenwald
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.0
+ * @date 08.2008
+ * @details This class represents a parameter of a model. It contains
  * information about the name and the range of the parameter.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -79,7 +79,7 @@ public:
     /**
      * @return Whether parameter is fixed to a value. */
     virtual bool Fixed() const
-    { return fFixed; }
+    { return fFixed or fLowerLimit == fUpperLimit; }
 
     /**
      * @return Value parameter may be fixed to. */
@@ -103,7 +103,7 @@ public:
 
     /**
      * Get log of value of prior at parameter value.
-     * @param value of parameter to return prior of.
+     * @param x Value of parameter to return prior of.
      * @return log of prior value at parameter value. */
     virtual double GetLogPrior(double x) const;
 
@@ -121,8 +121,8 @@ public:
 
     /**
      * @return a random value distributed according to the prior.
-     * @param rnd Pointer to the random generator to be used, if needed. */
-    virtual double GetRandomValueAccordingToPrior(TRandom* const R) const;
+     * @param rng Pointer to the random generator to be used, if needed. */
+    virtual double GetRandomValueAccordingToPrior(TRandom* const rng) const;
 
     /** @} */
 

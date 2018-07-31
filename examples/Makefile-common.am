@@ -8,6 +8,7 @@ AM_CXXFLAGS = \
 	-I$(top_builddir)/models/mtf/.includes \
 	$(ROOTAUXCFLAGS) \
 	$(ROOTCFLAGS)
+AM_CXXFLAGS += @AM_CXXFLAGS@
 
 LDADD = \
 	$(top_builddir)/src/libBAT.la \
@@ -15,8 +16,7 @@ LDADD = \
 	$(top_builddir)/models/mtf/libBATmtf.la \
 	$(ROOTLIBS)
 
-AM_LDFLAGS = -L$(ROOTLIBDIR)
-
+AM_LDFLAGS = $(ROOTLIBDIRFLAGS)
 
 TEST_EXTENSIONS =
 AM_TESTS_ENVIRONMENT = . $(top_builddir)/test-env.sh;

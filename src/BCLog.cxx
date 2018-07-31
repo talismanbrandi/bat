@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -27,6 +27,8 @@ BCLog::LogLevel BCLog::fMinimumLogLevelScreen = BCLog::summary;
 
 bool BCLog::fFirstOutputDone = false;
 
+bool BCLog::fPrefix = true;
+
 std::string BCLog::fVersion = VERSION;
 
 // ---------------------------------------------------------
@@ -44,6 +46,9 @@ void BCLog::OpenLog(const std::string& filename, BCLog::LogLevel loglevelfile, B
 {
     // suppress the ROOT Info printouts
     gErrorIgnoreLevel = 2000;
+
+    // first close and flush and existing log file
+    BCLog::CloseLog();
 
     // open log file
     BCLog::fOutputStream.open(filename.data());
@@ -72,12 +77,12 @@ void BCLog::Out(BCLog::LogLevel loglevelfile, BCLog::LogLevel loglevelscreen, co
     if (BCLog::IsOpen()) {
         // write message in to log file
         if (loglevelfile >= BCLog::fMinimumLogLevelFile)
-            BCLog::fOutputStream << BCLog::ToString(loglevelfile) << " : " << message << std::endl;
+            BCLog::fOutputStream << BCLog::ToString(loglevelfile) << message << std::endl;
     }
 
     // write message to screen
     if (loglevelscreen >= BCLog::fMinimumLogLevelScreen)
-        std::cout << BCLog::ToString(loglevelscreen) << " : " << message << std::endl;
+        std::cout << BCLog::ToString(loglevelscreen) << message << std::endl;
 }
 
 // ---------------------------------------------------------
@@ -87,8 +92,8 @@ void BCLog::StartupInfo()
     const char* message = Form(
                               " +------------------------------------------------------+\n"
                               " |                                                      |\n"
-                              " | BAT version %7s                                  |\n"
-                              " | Copyright (C) 2007-2015, the BAT core developer team |\n"
+                              " | BAT version %-12s                             |\n"
+                              " | Copyright (C) 2007-2018, the BAT core developer team |\n"
                               " | All rights reserved.                                 |\n"
                               " |                                                      |\n"
                               " | For the licensing terms see doc/COPYING              |\n"
@@ -113,17 +118,20 @@ void BCLog::StartupInfo()
 
 std::string BCLog::ToString(BCLog::LogLevel loglevel)
 {
+    if (!fPrefix)
+        return "";
+
     switch (loglevel) {
         case debug:
-            return "Debug  ";
+            return "Debug   : ";
         case detail:
-            return "Detail ";
+            return "Detail  : ";
         case summary:
-            return "Summary";
+            return "Summary : ";
         case warning:
-            return "Warning";
+            return "Warning : ";
         case error:
-            return "Error  ";
+            return "Error   : ";
         default:
             return "";
     }

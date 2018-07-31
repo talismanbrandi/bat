@@ -1,4 +1,3 @@
-#include <BAT/BCAux.h>
 #include <BAT/BCGaussianPrior.h>
 #include <BAT/BCLog.h>
 #include <BAT/BCParameter.h>
@@ -13,24 +12,18 @@
 
 int main()
 {
-    // ---- set style and open log files ---- //
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
-
     // open log file
-    BCLog::OpenLog("log.txt");
-    BCLog::SetLogLevel(BCLog::detail);
+    BCLog::OpenLog("log.txt", BCLog::detail);
 
     // ---- read histograms from a file ---- //
 
     // open file
     std::string fname = "templates.root";
-    TFile* file = TFile::Open(fname.c_str(), "READ");
+    TFile* file = TFile::Open(fname.data(), "READ");
 
     // check if file is open
     if (!file || file->IsZombie()) {
-        BCLog::OutError(Form("Could not open file %s.", fname.c_str()));
+        BCLog::OutError(Form("Could not open file %s.", fname.data()));
         BCLog::OutError("Run macro CreateHistograms.C in Root to create the file.");
         return 1;
     }
@@ -64,10 +57,6 @@ int main()
 
     // create new fitter object
     BCMTF m;
-
-
-    // set Metropolis as marginalization method
-    m.SetMarginalizationMethod(BCIntegrate::kMargMetropolis);
 
     // set the required precision of the MCMC (kLow, kQuick, kMedium, kHigh)
     // the higher the precision the longer the MCMC run
@@ -114,10 +103,10 @@ int main()
     m.GetParameter("systematic2").SetPrior(new BCGaussianPrior(0., 1.));
 
     // run MCMC
-    m.MarginalizeAll();
+    m.MarginalizeAll(BCIntegrate::kMargMetropolis);
 
     // find global mode
-    m.FindMode(m.GetBestFitParameters());
+    m.FindMode();
 
     // print all marginalized distributions
     m.PrintAllMarginalized("marginalized.pdf");

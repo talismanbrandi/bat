@@ -1,5 +1,5 @@
-BAT - Bayesian Analysis Toolkit
-===============================
+Installation instructions {#cha-install}
+=========================
 
 This document provides a short description of how to compile and use
 BAT on your computer.
@@ -22,7 +22,9 @@ a terminal.
 
 ### Required: Basic tools
 
-Compilation and tests work fine with gcc > 4.2 and clang >= 3.3.
+BAT itself uses only C++03 features. Compilation and tests work
+fine with gcc >= 4.3 and clang >= 3.3. But recent versions of ROOT
+(see below) may require a C++11 compliant compiler.
 
 Under Debian or Ubuntu, you can install the essential requirements with
 
@@ -33,22 +35,27 @@ release, some more packages are needed
 
     sudo apt-get install autoconf automake git-core libtool
 
+Building and installing works with autoconf >= 2.63 and automake >= 1.10. To run
+the tests, a more recent automake version is needed, v1.15 is known to be
+sufficient.
+
 ### Required: ROOT
 
-ROOT is an object-oriented data-analysis framework. At
-http://root.cern.ch/, you can obtain the source code as well as binary
-distributions for a number of Linux distributions and Mac OS X
-versions. We advise to download the latest production release of
-ROOT. BAT is compatible with ROOT 6 and we regularly run unit tests
-with ROOT 5.34/20 to ensure backward compatibility.
+ROOT is an object-oriented data-analysis framework. At http://root.cern.ch/, you
+can obtain the source code as well as binary distributions for a number of Linux
+distributions and Mac OS X versions. We advise to download the latest production
+release of ROOT. BAT is compatible with ROOT >=5.34.19 and ROOT 6. We regularly
+run unit tests with ROOT 5 and ROOT 6 to ensure backward compatibility.
 
-On Linux, an alternative is to check your package manager for the
-availability of ROOT packages. Usually these packages are rather old
-but often they are good enough to build BAT. For example in Debian
-Jessie or Ubuntu 14.04, you can conveniently install the requirements
-with
+On Linux, an alternative is to check your package manager for the availability
+of ROOT packages. Usually these packages are rather old but often they are good
+enough to build BAT. For example on Ubuntu systems up to 16.04, you can
+conveniently install the requirements with
 
-    sudo apt-get install libroot-graf2d-postscript-dev libroot-graf3d-g3d-dev libroot-math-foam-dev libroot-math-minuit-dev libroot-math-physics-dev libroot-math-mathmore-dev libroot-roofit-dev root-system-bin
+    sudo apt-get install libroot-graf2d-postscript-dev libroot-graf3d-g3d-dev\
+                         libroot-math-foam-dev libroot-math-minuit-dev\
+                         libroot-math-physics-dev libroot-math-mathmore-dev\
+                         libroot-roofit-dev root-system-bin
 
 #### Note
 
@@ -200,46 +207,43 @@ After installation, BAT offers two mechanisms to make BAT available:
 
 If you do not install BAT to the system directories, you need to
 manually add the path to `bat-config`, `bat.pc`, the libraries, and
-the include files to the search paths. Depending on your shell you can
-do that via the commands
+the include files to the search paths. Depending on your shell, the
+set of commands on linux for bash-compatible shells is
 
-```bash
-BATPREFIX="/bat/install/prefix"
-export PATH="$BATPREFIX/bin:$PATH"
-export LD_LIBRARY_PATH="$BATPREFIX/lib:$LD_LIBRARY_PATH"
-export CPATH="$BATPREFIX/include:$CPATH"
-export PKG_CONFIG_PATH="$BATPREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
-```
+    BATPREFIX="/bat/install/prefix"
+    export PATH="$BATPREFIX/bin:$PATH"
+    export LD_LIBRARY_PATH="$BATPREFIX/lib:$LD_LIBRARY_PATH"
+    export CPATH="$BATPREFIX/include:$CPATH"
+    export PKG_CONFIG_PATH="$BATPREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
 
-for bash-compatible shells or
+and for csh-compatible shells is
 
-```bash
-set BATPREFIX = /bat/install/prefix
-setenv PATH              "${BATPREFIX}/bin:${PATH}"
-setenv LD_LIBRARY_PATH   "${BATPREFIX}/lib:${LD_LIBRARY_PATH}"
-setenv CPATH             "${BATPREFIX}/include:${CPATH}"
-setenv PKG_CONFIG_PATH   "${BATPREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-```
+    set BATPREFIX = /bat/install/prefix
+    setenv PATH              "${BATPREFIX}/bin:${PATH}"
+    setenv LD_LIBRARY_PATH   "${BATPREFIX}/lib:${LD_LIBRARY_PATH}"
+    setenv CPATH             "${BATPREFIX}/include:${CPATH}"
+    setenv PKG_CONFIG_PATH   "${BATPREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
-for csh-compatible shells. On Mac OS X you might also need to setup
-`DYLD_LIBRARY_PATH`. If you want to make BAT permanently available,
-add the above commands to your login script; for example `.profile` or
-`.bashrc`.
+If you want to make BAT permanently available, add the above commands
+to your login script, for example to `.profile` or to `.bashrc`.
 
-Note that `bat-config` needs to be available to compile the examples
-in the `examples/` subdirectory after installation.
+On Mac OS X you do not have to set up `LD_LIBRARY_PATH` because we use
+the `rpath` option to make BAT compatible with the SIP feature enabled
+by default on Mac OS X starting with El Capitan.
 
-Updating `$CPATH` is required if you work with ROOT macros that use
-BAT (both for ROOT 5 and 6).
+Updating `$CPATH` is required if you work with interactive ROOT macros
+that use BAT (both for ROOT 5 and 6).
+
+The minimal setup does not require setting `PKG_CONFIG_PATH` to run
+BAT unless you want to integrate BAT into another probject using
+`pkg-config`. BAT itself does not use `pkg-config`.
 
 Including BAT in your project
 -----------------------------
 
 The most basic way to compile and link a file `example.cxx` with BAT is
 
-```bash
-gcc `bat-config --cflags` `bat-config --libs` example.cxx -o
-```
+    gcc `bat-config --cflags` `bat-config --libs` example.cxx -o
 
 In a makefile, simply query `bat-config` to set appropriate
 variables. However, there will be an error at runtime, for example in
@@ -260,13 +264,11 @@ libraries. Else `cling` will emit confusing
 [error messages](https://github.com/bat/bat/issues/5). For example,
 the right order would be
 
-```cpp
-int main() {
-    BCLog::OpenLog("log.txt");
-    BCAux::SetStyle();
-    ...
-}
-```
+    int main() {
+        BCLog::OpenLog("log.txt");
+        BCAux::SetStyle();
+        ...
+    }
 
 instead of the other way around around because `OpenLog` creates a
 singleton object.

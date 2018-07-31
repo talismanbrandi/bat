@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -52,7 +52,7 @@ BCModel::BCModel(const std::string& filename, const std::string& name, bool load
 BCModel::BCModel(const BCModel& other)
     : BCIntegrate(other),
       fDataSet(other.fDataSet),
-      fPriorModel(0),
+      fPriorModel(NULL),
       fBCH1DPriorDrawingOptions(other.fBCH1DPriorDrawingOptions),
       fBCH2DPriorDrawingOptions(other.fBCH2DPriorDrawingOptions),
       fBCH1DPosteriorDrawingOptions(other.fBCH1DPosteriorDrawingOptions),
@@ -63,38 +63,42 @@ BCModel::BCModel(const BCModel& other)
 }
 
 // ---------------------------------------------------------
+BCModel& BCModel::operator=(const BCModel& other)
+{
+    BCIntegrate::operator=(other);
+    fDataSet = other.fDataSet;
+    fPriorModel = NULL;
+    fBCH1DPriorDrawingOptions = other.fBCH1DPriorDrawingOptions;
+    fBCH2DPriorDrawingOptions = other.fBCH2DPriorDrawingOptions;
+    fBCH1DPosteriorDrawingOptions = other.fBCH1DPosteriorDrawingOptions;
+    fBCH2DPosteriorDrawingOptions = other.fBCH2DPosteriorDrawingOptions;
+    fDrawPriorFirst = other.fDrawPriorFirst;
+    fFactorizedPrior = other.fFactorizedPrior;
+
+    return *this;
+}
+
+// ---------------------------------------------------------
 BCModel::~BCModel()
 {
     delete fPriorModel;
 }
 
 // ---------------------------------------------------------
-void swap(BCModel& A, BCModel& B)
-{
-    swap(static_cast<BCModel&>(A), static_cast<BCModel&>(B));
-    std::swap(A.fDataSet, B.fDataSet);
-    std::swap(A.fPriorModel, B.fPriorModel);
-    std::swap(A.fBCH1DPriorDrawingOptions, B.fBCH1DPriorDrawingOptions);
-    std::swap(A.fBCH2DPriorDrawingOptions, B.fBCH2DPriorDrawingOptions);
-    std::swap(A.fBCH1DPosteriorDrawingOptions, B.fBCH1DPosteriorDrawingOptions);
-    std::swap(A.fBCH2DPosteriorDrawingOptions, B.fBCH2DPosteriorDrawingOptions);
-    std::swap(A.fDrawPriorFirst, B.fDrawPriorFirst);
-    std::swap(A.fFactorizedPrior, B.fFactorizedPrior);
-}
-
-// ---------------------------------------------------------
 double BCModel::LogProbabilityNN(const std::vector<double>& parameters)
 {
-    // first calculate prior (which is usually cheaper than likelihood)
-    double lp = LogAPrioriProbability(parameters);
-    // then calculation likelihood, or set to -inf, if prior already invalid
-    double ll = (std::isfinite(lp)) ? LogLikelihood(parameters) : -std::numeric_limits<double>::infinity();;
+    ThreadLocalStorage& s = fMCMCThreadLocalStorage[GetCurrentChain()];
 
-    if (GetCurrentChain() < fMCMCLogLikelihood_Provisional.size() && GetCurrentChain() < fMCMCLogPrior_Provisional.size()) {
-        fMCMCLogLikelihood_Provisional[GetCurrentChain()] = ll;
-        fMCMCLogPrior_Provisional[GetCurrentChain()] = lp;
-    }
-    return ll + lp;
+    // first calculate prior (which is usually cheaper than likelihood)
+    s.log_prior = LogAPrioriProbability(parameters);
+    // then calculate likelihood, or set to -inf, if prior already invalid
+    if (std::isfinite(s.log_prior))
+        s.log_likelihood = LogLikelihood(parameters);
+    else
+        s.log_likelihood = -std::numeric_limits<double>::infinity();
+
+    s.log_probability = s.log_prior + s.log_likelihood;
+    return s.log_probability;
 }
 
 // ---------------------------------------------------------
@@ -115,8 +119,8 @@ void BCModel::InitializeMarkovChainTree(bool replacetree, bool replacefile)
     BCEngineMCMC::InitializeMarkovChainTree(replacetree, replacefile);
     if (!fMCMCTree)
         return;
-    fMCMCTree->Branch("LogLikelihood", &fMCMCTree_LogLikelihood, "log(likelihood)/D");
-    fMCMCTree->Branch("LogPrior",      &fMCMCTree_LogPrior,      "log(prior)/D");
+    fMCMCTree->Branch("LogLikelihood", &fMCMCTree_State.log_likelihood, "log_likelihood/D");
+    fMCMCTree->Branch("LogPrior",      &fMCMCTree_State.log_prior,      "log_prior/D");
 }
 
 // ---------------------------------------------------------
@@ -249,6 +253,7 @@ BCH1D BCModel::GetPrior(unsigned index)
             if (const_prior) {
                 prior.SetLocalMode((unsigned)0, GetParameter(index).GetRangeCenter());
                 prior.SetNBands(0);
+                prior.SetDrawLocalMode(0);
             }
         }
     }
@@ -301,8 +306,13 @@ BCH2D BCModel::GetPrior(unsigned index1, unsigned index2)
             else if (!const_prior1 && const_prior2)
                 title += " (flat in " + fPriorModel->GetVariable(index2).GetLatexName() + ")";
             else if (const_prior1 && const_prior2) {
-                title += " (both flat)";
+                title += " (flat in both "
+                         + fPriorModel->GetVariable(index1).GetLatexName()
+                         + " and "
+                         + fPriorModel->GetVariable(index2).GetLatexName()
+                         + ")";
                 prior.SetNBands(0);
+                prior.SetDrawLocalMode(false);
             }
         }
     }
@@ -362,6 +372,7 @@ unsigned BCModel::PrintKnowledgeUpdatePlots(const std::string& filename, unsigne
         if (prior.GetNBands() == 0) {
             prior.CopyOptions(fBCH1DPriorDrawingOptions);
             prior.SetNBands(0);
+            prior.SetDrawLocalMode(false);
         } else
             prior.CopyOptions(fBCH1DPriorDrawingOptions);
         posterior.CopyOptions(fBCH1DPosteriorDrawingOptions);
@@ -383,6 +394,7 @@ unsigned BCModel::PrintKnowledgeUpdatePlots(const std::string& filename, unsigne
         if (prior.GetNBands() == 0) {
             prior.CopyOptions(fBCH2DPriorDrawingOptions);
             prior.SetNBands(0);
+            prior.SetDrawLocalMode(false);
         } else
             prior.CopyOptions(fBCH2DPriorDrawingOptions);
         posterior.CopyOptions(fBCH2DPosteriorDrawingOptions);
@@ -427,7 +439,7 @@ unsigned BCModel::PrintKnowledgeUpdatePlots(const std::string& filename, unsigne
         // go to next pad
         c.cd(i % (hdiv * vdiv) + 1)->ResetAttPad();
 
-        BCAux::DrawKnowledgeUpdate(h1[i].first, h1[i].second, fDrawPriorFirst);
+        BCAux::DrawKnowledgeUpdate(h1[i].first, h1[i].second, fDrawPriorFirst, fObjectTrash);
 
         if (++n % 100 == 0)
             BCLog::OutDetail(Form(" --> %d plots done", n));
@@ -449,7 +461,7 @@ unsigned BCModel::PrintKnowledgeUpdatePlots(const std::string& filename, unsigne
         c.cd(i % (hdiv * vdiv) + 1)->ResetAttPad();
 
         // prior text?
-        BCAux::DrawKnowledgeUpdate(h2[i].first, h2[i].second, fDrawPriorFirst);
+        BCAux::DrawKnowledgeUpdate(h2[i].first, h2[i].second, fDrawPriorFirst, fObjectTrash);
 
         if (++n % 100 == 0)
             BCLog::OutDetail(Form(" --> %d plots done", n));

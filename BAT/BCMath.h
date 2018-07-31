@@ -1,22 +1,22 @@
 #ifndef __BCMATH__H
 #define __BCMATH__H
 
-/*!
- * \namespace BCMath
- * \brief Some useful mathematic functions.
- * \author Frederik Beaujean
- * \author Daniel Greenwald
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \author Jing Liu
- * \version 1.0
- * \date 08.2008
- * \detail A namespace which encapsulates some mathematical functions
+/**
+ * @namespace BCMath
+ * @brief Some useful mathematic functions.
+ * @author Frederik Beaujean
+ * @author Daniel Greenwald
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @author Jing Liu
+ * @version 1.0
+ * @date 08.2008
+ * @details A namespace which encapsulates some mathematical functions
  * necessary for BAT.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -145,7 +145,7 @@ double LogBinomFactorExact(unsigned n, unsigned k);
 double LogFact(unsigned n);
 
 /** Cache factorials for first \arg \c n integers. */
-unsigned CacheFactorials(unsigned int n);
+unsigned CacheFactorials(unsigned n);
 
 /**
  * Returns the nearest integer of a double number. */
@@ -162,7 +162,7 @@ int Nint(double x);
  * @param nobservations The number of data points.
  * @return corrected p value
  */
-double CorrectPValue(const double& pvalue, const unsigned& npar, const unsigned& nobservations) throw (std::domain_error);
+double CorrectPValue(const double& pvalue, const unsigned& npar, const unsigned& nobservations);
 
 /**
  * Calculate the p value using fast MCMC for a histogram and the likelihood as test statistic.
@@ -175,7 +175,7 @@ double CorrectPValue(const double& pvalue, const unsigned& npar, const unsigned&
  * @return The p value
  */
 double FastPValue(const std::vector<unsigned>& observed, const std::vector<double>& expected,
-                  unsigned nIterations = 1e5, unsigned seed = 0) throw (std::invalid_argument);
+                  unsigned nIterations = 1e5, unsigned seed = 0);
 
 /** @} */
 

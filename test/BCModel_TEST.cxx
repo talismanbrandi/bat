@@ -1,19 +1,23 @@
 /*
- * Copyright (C) 2013, Frederik Beaujean
- * All rights reserved.
- *
- * For the licensing terms see doc/COPYING.
- */
+* Copyright (C) 2007-2018, the BAT core developer team
+* All rights reserved.
+*
+* For the licensing terms see doc/COPYING.
+* For documentation see http://mpp.mpg.de/bat
+*/
 
 #include <config.h>
 #include "GaussModel.h"
 #include "test.h"
 
 #include <TH1.h>
+#include <TH2.h>
 
 #include <BAT/BCH1D.h>
 #include <BAT/BCH2D.h>
 #include <BAT/BCParameter.h>
+
+#include <stdexcept>
 
 using namespace test;
 
@@ -41,6 +45,195 @@ public:
         for (unsigned i = 0 ; i < m.GetNParameters() ; ++i)
             for (unsigned j = i + 1 ; j < m.GetNParameters() ; ++j)
                 TEST_CHECK(m.GetMarginalized(i, j).Valid() xor ((i == fixed) or (j == fixed)));
+    }
+
+    // check that
+    // 1) one can call MarginalizeAll() several times
+    // 2) one can force the pre-run to be rerun
+    // 3) MarginalizeAll() fails if the model is changed
+    // mult := flag for multivariate running
+    void multiple_runs(bool mult) const
+    {
+        unsigned N = 10000;
+
+        unsigned n_par = 4;
+
+        std::string prefix = mult ? "mvar_" : "fact_";
+
+        {
+            GaussModel m(prefix + "mult_run", n_par);
+            m.SetPrecision(BCEngineMCMC::kMedium);
+            m.SetNIterationsRun(N);
+            m.SetProposeMultivariate(mult);
+
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+            for (unsigned c = 0; c < m.GetNChains(); ++c)
+                TEST_CHECK_EQUAL(m.GetChainState(c).iteration / (mult ? 1 : m.GetNChains()), 2 * N);
+
+            // Force pre-run to be rerun
+            m.SetFlagPreRun(true);
+            m.MarginalizeAll(BCIntegrate::kMargMetropolis);
+            for (unsigned c = 0; c < m.GetNChains(); ++c)
+                TEST_CHECK_EQUAL(m.GetChainState(c).iteration / (mult ? 1 : m.GetNChains()), N);
+        }
+
+        // fix a parameter
+        {
+            GaussModel m(prefix + "mult_run_fix_par", n_par);
+            m.SetPrecision(BCEngineMCMC::kMedium);
+            m.SetNIterationsRun(N);
+            m.SetProposeMultivariate(mult);
+
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+            m.GetParameter(1).Fix(0);
+
+            TEST_CHECK_THROWS(std::runtime_error, m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // check works with a fixed parameter and fails when unfixing it
+        {
+            unsigned n_fix = 1;
+
+            GaussModel m(prefix + "mult_run_fixed_par", n_par);
+            m.SetPrecision(BCEngineMCMC::kMedium);
+            m.SetNIterationsRun(N);
+            m.SetProposeMultivariate(mult);
+            m.GetParameter(n_fix).Fix(0);
+
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+            m.GetParameter(n_fix).Unfix();
+
+            TEST_CHECK_THROWS(std::runtime_error, m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+
+        // add a parameter
+        {
+            GaussModel m(prefix + "mult_run_add_par", n_par);
+            m.SetPrecision(BCEngineMCMC::kMedium);
+            m.SetNIterationsRun(N);
+            m.SetProposeMultivariate(mult);
+
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+            m.AddParameter("new_parameter", 0, 1);
+
+            TEST_CHECK_THROWS(std::runtime_error, m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // change the number of chains
+        {
+            GaussModel m(prefix + "mult_run_change_nchains", n_par);
+            m.SetPrecision(BCEngineMCMC::kMedium);
+            m.SetNIterationsRun(N);
+            m.SetProposeMultivariate(mult);
+
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+            m.SetNChains(2 * m.GetNChains());
+
+            TEST_CHECK_THROWS(std::runtime_error, m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // change from proposal function
+        {
+            GaussModel m(prefix + "mult_run_change_proposal", n_par);
+            m.SetPrecision(BCEngineMCMC::kMedium);
+            m.SetNIterationsRun(N);
+            m.SetProposeMultivariate(mult);
+
+            TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+            m.SetProposeMultivariate(!m.GetProposeMultivariate());
+
+            TEST_CHECK_THROWS(std::runtime_error, m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+    }
+
+
+    // check that
+    // 1) one can continue running a marginalization
+    // 2) continued marginalization fails if the model is changed
+    // mult := flag for multivariate running
+    void continued_running(bool mult) const
+    {
+        unsigned N = 10000;
+
+        unsigned n_par = 4;
+        unsigned n_fixed = 2;
+        unsigned n_fix = 3;
+
+        std::string prefix = mult ? "mvar_" : "fact_";
+
+        GaussModel m(prefix + "first_run", n_par);
+        m.SetPrecision(BCEngineMCMC::kMedium);
+        m.SetNIterationsRun(N);
+        m.SetProposeMultivariate(mult);
+        m.WriteMarkovChain(m.GetSafeName() + "_mcmc.root", "RECREATE");
+        m.GetParameter(n_fixed).Fix(0.15);
+
+        TEST_CHECK_NO_THROW(m.MarginalizeAll(BCIntegrate::kMargMetropolis));
+
+        // test it works
+        {
+            GaussModel mm(prefix + "cont_run", n_par);
+            mm.PrepareToContinueMarginalization(m.GetSafeName() + "_mcmc.root");
+            // check that the proposal function is correctly chosen
+            TEST_CHECK_EQUAL(mm.GetProposeMultivariate(), m.GetProposeMultivariate());
+            for (unsigned p = 0; p < m.GetNParameters(); ++p) {
+                TEST_CHECK_EQUAL(mm.GetParameter(p).Fixed(), m.GetParameter(p).Fixed());
+                if (m.GetParameter(p).Fixed())
+                    TEST_CHECK_EQUAL(mm.GetParameter(p).GetFixedValue(), m.GetParameter(p).GetFixedValue());
+            }
+            TEST_CHECK_NO_THROW(mm.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // add a parameter
+        {
+            GaussModel mm(prefix + "cont_run_add_par", n_par);
+            mm.PrepareToContinueMarginalization(m.GetSafeName() + "_mcmc.root");
+            mm.AddParameter("new_parameter", 0, 1);
+            TEST_CHECK_THROWS(std::runtime_error, mm.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // change the number of chains
+        {
+            GaussModel mm(prefix + "cont_run_change_nchains", n_par);
+            mm.PrepareToContinueMarginalization(m.GetSafeName() + "_mcmc.root");
+            mm.SetNChains(2 * m.GetNChains());
+            TEST_CHECK_THROWS(std::runtime_error, mm.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // change from proposal function
+        // switching from factorized -> multivariate does not break, but is not recommended
+        {
+            GaussModel mm(prefix + "cont_run_change_proposal", n_par);
+            mm.PrepareToContinueMarginalization(m.GetSafeName() + "_mcmc.root");
+            mm.SetProposeMultivariate(!m.GetProposeMultivariate());
+            TEST_CHECK_THROWS(std::runtime_error, mm.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // fix a parameter
+        {
+            GaussModel mm(prefix + "cont_run_fix_par", n_par);
+            mm.PrepareToContinueMarginalization(m.GetSafeName() + "_mcmc.root");
+            mm.GetParameter(n_fix).Fix(0.);
+            TEST_CHECK_THROWS(std::runtime_error, mm.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
+
+        // unfix a parameter
+        {
+            GaussModel mm(prefix + "cont_run_unfix_par", n_par);
+            mm.PrepareToContinueMarginalization(m.GetSafeName() + "_mcmc.root");
+            mm.GetParameter(n_fixed).Unfix();
+            TEST_CHECK_THROWS(std::runtime_error, mm.MarginalizeAll(BCIntegrate::kMargMetropolis));
+        }
     }
 
     // turn on/off parameter storing
@@ -85,6 +278,7 @@ public:
         /* so run again without fixing */
         m.SetName("all free");
         m.GetParameter(0).Unfix();
+        m.SetFlagPreRun(true);
         TEST_CHECK_EQUAL(m.GetNFreeParameters(), 4);
         m.MarginalizeAll();
 
@@ -96,6 +290,7 @@ public:
         m.SetName("fix last");
         fixed = 3;
         m.GetParameter(fixed).Fix(0.23);
+        m.SetFlagPreRun(true);
         count_marginals(m, fixed);
 
         // gaussian around zero with width two
@@ -112,20 +307,87 @@ public:
         count_marginals(m, fixed);
     }
 
+    void compare_hist(const TH1* ref, const TH1* target) const
+    {
+        TEST_CHECK(target != ref);
+        TEST_CHECK(target != NULL);
+        TEST_CHECK_EQUAL(target->GetNbinsX(), ref->GetNbinsX());
+        for (int i = 0; i <= ref->GetNbinsX(); ++i) {
+            TEST_CHECK_EQUAL(target->GetBinContent(i),
+                             ref->GetBinContent(i));
+        }
+    }
+
+    void compare_hist(const TH2* ref, const TH2* target) const
+    {
+        TEST_CHECK(target != ref);
+        TEST_CHECK(target != NULL);
+        TEST_CHECK_EQUAL(target->GetNbinsX(), ref->GetNbinsX());
+        TEST_CHECK_EQUAL(target->GetNbinsY(), ref->GetNbinsY());
+        for (int i = 0; i <= ref->GetNbinsX(); ++i) {
+            for (int j = 0; j <= ref->GetNbinsY(); ++j) {
+                TEST_CHECK_EQUAL(target->GetBinContent(i, j),
+                                 ref->GetBinContent(i, j));
+            }
+        }
+    }
+
     void copy() const
     {
-        GaussModel m("copy", 1);
+        GaussModel m("copy", 3);
+
+        // add a data set (not copied!) even though it is not used
+        BCDataSet data(1);
+        m.SetDataSet(&data);
+        TEST_CHECK_EQUAL(m.GetDataSet(), &data);
 
         // use non-default values
         m.SetNChains(m.GetNChains() + 1);
 
         m.MarginalizeAll();
 
-        // basic test: no segfault
-        GaussModel m2 = m;
+        // histograms are dynamically created, they are the criticial part
+        // during copying.
+        TH1* const h0 = m.GetMarginalizedHistogram(0);
+        TH1* const h1 = m.GetMarginalizedHistogram(1);
+        TH2* const h01 = m.GetMarginalizedHistogram(0, 1);
 
-        // non-default values should be taken over
-        TEST_CHECK_EQUAL(m2.GetNChains(), m.GetNChains());
+        TEST_SECTION("copy ctor",
+
+                     GaussModel m2(m);
+
+                     // non-default values should be taken over
+                     TEST_CHECK_EQUAL(m2.GetNChains(), m.GetNChains());
+
+                     // data set shared
+                     TEST_CHECK_EQUAL(m2.GetDataSet(), &data);
+
+                     // Original values should be untouched
+                     TEST_CHECK_EQUAL(h0, m.GetMarginalizedHistogram(0));
+                     TEST_CHECK_EQUAL(h1, m.GetMarginalizedHistogram(1));
+                     TEST_CHECK_EQUAL(h01, m.GetMarginalizedHistogram(0, 1));
+
+                     compare_hist(h0, m2.GetMarginalizedHistogram(0));
+                     compare_hist(h1, m2.GetMarginalizedHistogram(1));
+                     compare_hist(h01, m2.GetMarginalizedHistogram(0, 1));
+                    );
+
+        TEST_SECTION("assignment operator",
+
+                     GaussModel m3("assignment", 1);
+                     TEST_CHECK_EQUAL(m3.GetMarginalizedHistogram(0), NULL);
+                     TEST_CHECK_EQUAL(m3.GetDataSet(), NULL);
+
+                     m3 = m;
+
+                     TEST_CHECK_EQUAL(m3.GetName(), "copy");
+                     TEST_CHECK_EQUAL(m3.GetDataSet(), &data);
+                     TEST_CHECK_EQUAL(m3.GetNChains(), m.GetNChains());
+
+                     compare_hist(h0, m3.GetMarginalizedHistogram(0));
+                     compare_hist(h1, m3.GetMarginalizedHistogram(1));
+                     compare_hist(h01, m3.GetMarginalizedHistogram(0, 1));
+                    );
     }
 
     virtual void run() const
@@ -135,10 +397,13 @@ public:
         fixing(false);
         deltaPrior();
         copy();
+        TEST_SECTION("multiple marginalization", {
+            multiple_runs(true);
+            multiple_runs(false);
+        });
+        TEST_SECTION("continued marginalization", {
+            continued_running(true);
+            continued_running(false);
+        });
     }
 } bcmodel_test;
-
-
-// Local Variables:
-// compile-command: "make -C ../ && make BCModel.TEST && ./BCModel.TEST"
-// End:

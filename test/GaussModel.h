@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2007-2018, the BAT core developer team
+ * All rights reserved.
+ *
+ * For the licensing terms see doc/COPYING.
+ * For documentation see http://mpp.mpg.de/bat
+ */
 
 #ifndef __BC_TEST__GAUSSMODEL__H
 #define __BC_TEST__GAUSSMODEL__H
@@ -18,6 +25,7 @@ public:
 
     // Methods to overload, see file GaussModel.cxx
     virtual double LogLikelihood(const std::vector<double>& parameters);
+    virtual void CalculateObservables(const std::vector<double>& parameters);
 
     unsigned long Calls() const
     {
@@ -48,7 +56,6 @@ private:
      * Count how often likelihood is called
      */
     unsigned long fCalls;
-
 };
 // ---------------------------------------------------------
 

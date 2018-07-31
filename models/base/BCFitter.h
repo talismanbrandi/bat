@@ -1,14 +1,14 @@
 #ifndef __BCFITTER__H
 #define __BCFITTER__H
 
-/*!
- * \class BCFitter
- * \brief A base class for all fitting classes
- * \detail This a general class around fitting a 1D function to data of various kinds with uncertainty propagation.
+/**
+ * @class BCFitter
+ * @brief A base class for all fitting classes
+ * @details This a general class around fitting a 1D function to data of various kinds with uncertainty propagation.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -17,9 +17,9 @@
 
 // ---------------------------------------------------------
 
-#include "../../BAT/BCAux.h"
-#include "../../BAT/BCDataSet.h"
-#include "../../BAT/BCModel.h"
+#include <BAT/BCAux.h>
+#include <BAT/BCDataSet.h>
+#include <BAT/BCModel.h>
 
 #include <TF1.h>
 #include <TH2D.h>
@@ -53,7 +53,9 @@ public:
     /**
      * Get fit function. */
     TF1& GetFitFunction()
-    { return fFitFunction.at(GetCurrentChain()); }
+    {
+        return fFitFunction.at(GetCurrentChain());
+    }
 
     /**
      * @param level Desired probability mass
@@ -63,26 +65,52 @@ public:
     TH2* GetGraphicalErrorBandXY(double level = .68, int nsmooth = 0, bool overcoverage = true) const;
 
     /**
+     * @return The internal errorband histogram */
+    const TH2& GetErrorBandXY()const
+    { return fErrorBandXY; };
+
+    /**
      * Returns a vector of y-values at a certain probability level.
      * @param level The level of probability
      * @return vector of y-values */
     std::vector<double> GetErrorBand(double level) const;
 
+    /**
+     * @note The caller is responsible for deletion of the returned object. */
     TGraph* GetErrorBandGraph(double level1, double level2) const;
 
+    /**
+     * @return A graph of the fit function evaluated at all points given the `parameters`.
+     * @note The caller is responsible for deletion of the returned object. */
     TGraph* GetFitFunctionGraph(const std::vector<double>& parameters);
 
+    /**
+     * @return A graph of the fit function evaluated at all points defined by
+     * the error band given the best-fit parameters.
+     * @note The caller is responsible for deletion of the returned object. */
     TGraph* GetFitFunctionGraph()
-    { return GetFitFunctionGraph(std::vector<double>(GetBestFitParameters().begin(), GetBestFitParameters().begin() + GetNParameters())); }
+    { return GetFitFunctionGraph(GetBestFitParameters()); }
 
+    /**
+     * @return A graph of the fit function evaluated at `n+1` regularly spaced
+     * points between `xmin` and including `xmax` given the `parameters`.
+     * @note The caller is responsible for deletion of the returned object. */
     TGraph* GetFitFunctionGraph(const std::vector<double>& parameters, double xmin, double xmax, int n = 1000);
 
+    /**
+     * Toggle the data axis defined by `index` to be fixed. */
     void FixDataAxis(unsigned int index, bool fixed);
 
+    /**
+     * @return Is data axis `index` fixed? */
     bool GetFixedDataAxis(unsigned int index) const;
 
+    /**
+     * @return the (uncorrected) p value */
     double GetPValue() const
-    { return fPValue; }
+    {
+        return fPValue;
+    }
 
     /* @} */
 
@@ -94,28 +122,63 @@ public:
     void SetErrorBandContinuous(bool flag);
 
     /**
+     *Extends the lower x Edge of th errorband by -extension */
+    void SetErrorBandExtensionLowEdgeX(double extension)
+    {
+        fErrorBandExtensionLowEdgeX = extension;
+    }
+
+    /**
+     *Extends the lower x Edge of th errorband by +extension */
+    void SetErrorBandExtensionUpEdgeX(double extension)
+    {
+        fErrorBandExtensionUpEdgeX = extension;
+    }
+
+    /**
+     *Extends the lower y Edge of th errorband by -extension */
+    void SetErrorBandExtensionLowEdgeY(double extension)
+    {
+        fErrorBandExtensionLowEdgeY = extension;
+    }
+
+    /**
+     *Extends the lower y Edge of th errorband by +extension */
+    void SetErrorBandExtensionUpEdgeY(double extension)
+    {
+        fErrorBandExtensionUpEdgeY = extension;
+    }
+    /**
      * Turn on or off the filling of the error band during the MCMC run.
      * @param flag set to true for turning on the filling */
     void SetFillErrorBand(bool flag = true)
-    { fFlagFillErrorBand = flag; }
+    {
+        fFlagFillErrorBand = flag;
+    }
 
     /**
      * Turn off filling of the error band during the MCMC run.
      * This method is equivalent to SetFillErrorBand(false) */
     void UnsetFillErrorBand()
-    { fFlagFillErrorBand = false; }
+    {
+        fFlagFillErrorBand = false;
+    }
 
     /**
      * Sets index of the x values in function fits.
      * @param index Index of the x values */
     void SetFitFunctionIndexX(int index)
-    { fFitFunctionIndexX = index; }
+    {
+        fFitFunctionIndexX = index;
+    }
 
     /**
      * Sets index of the y values in function fits.
      * @param index Index of the y values */
     void SetFitFunctionIndexY(int index)
-    { fFitFunctionIndexY = index; }
+    {
+        fFitFunctionIndexY = index;
+    }
 
     /**
      * Sets indices of the x and y values in function fits.
@@ -132,7 +195,9 @@ public:
      * true: use ROOT's TF1::Integrate() \n
      * false: use linear interpolation */
     void SetFlagIntegration(bool flag)
-    { fFlagIntegration = flag; };
+    {
+        fFlagIntegration = flag;
+    };
 
     /**
      * Defines a fit function.
@@ -189,24 +254,22 @@ private:
 
 protected:
     /**
-     * Copy over the most important properties of a 1D histogram.
-     * This function is to emulate the TH1::Copy() method for our purposes.
-     * It is not needed for root 5.34.19 and higher.
-     */
-    static void CopyHist(const TH1& source, TH1D& destination);
-
-    /**
      * Flag whether or not to fill the error band */
     bool fFlagFillErrorBand;
 
     /**
-     * The indices for function fits */
+     * The index for function fits in x direction */
     int fFitFunctionIndexX;
+    /**
+     * The index for function fits in y direction */
     int fFitFunctionIndexY;
 
     /**
      * A flag for single point evaluation of the error "band" */
     bool fErrorBandContinuous;
+
+    /**
+     * The x positions where the error is calculated */
     std::vector<double> fErrorBandX;
 
     /**
@@ -233,13 +296,31 @@ protected:
      * interpolation (false) */
     bool fFlagIntegration;
 
-    /** Storage for plot objects with proper clean-up */
-    mutable BCAux::BCTrash<TObject> fObjectTrash;
+    /**
+     * extends the lower edge of x range by the given value  */
+    double fErrorBandExtensionLowEdgeX;
+    /**
+     * extends the upper edge of x range by the given value  */
+    double fErrorBandExtensionUpEdgeX;
+
+    /**
+     * extends the upper edge of y range by the given value  */
+    double fErrorBandExtensionLowEdgeY;
+
+    /**
+     * extends the upper edge of y range by the given value  */
+    double fErrorBandExtensionUpEdgeY;
 
     /** Don't allow user to accidentally set the data set,
      * as it is used internally. */
     using BCModel::SetDataSet;
     using BCModel::GetDataSet;
+
+    /** Take care of bin width when creating a graph from the fit function */
+    virtual double GraphCorrection(unsigned /* ibin */) const
+    {
+        return 1.0;
+    }
 };
 
 // ---------------------------------------------------------

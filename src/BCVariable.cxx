@@ -71,15 +71,15 @@ void BCVariable::CalculatePrecision(bool force)
 {
     // need some extra digits to see where things become insignificant
     unsigned new_precision = 4 + ceil(-log10(fabs(fUpperLimit - fLowerLimit) / std::max(fabs(fUpperLimit), fabs(fLowerLimit))));
-    if (force or new_precision > GetPrecision())
+    if (force || new_precision > GetPrecision())
         SetPrecision(new_precision);
 }
 // ---------------------------------------------------------
 bool BCVariable::IsAtLimit(double value) const
 {
-    if ( (value - fLowerLimit) * (value - fLowerLimit) / fLowerLimit / fLowerLimit <= 1e-10
-            or
-            (value - fUpperLimit) * (value - fUpperLimit) / fUpperLimit / fUpperLimit <= 1e-10 )
+    if ((value - fLowerLimit) * (value - fLowerLimit) / fLowerLimit / fLowerLimit <= 1e-10
+            ||
+            (value - fUpperLimit) * (value - fUpperLimit) / fUpperLimit / fUpperLimit <= 1e-10)
         return true;
 
     return false;
@@ -106,21 +106,41 @@ std::string BCVariable::OneLineSummary(bool print_prefix, int name_length) const
 }
 
 // ---------------------------------------------------------
+std::string BCVariable::H1Title() const
+{
+    return std::string(";") + GetLatexNameWithUnits() + ";P(" + GetLatexName() + " | Data)";
+}
+
+// ---------------------------------------------------------
+std::string BCVariable::H2Title(const BCVariable& ordinate) const
+{
+    return std::string(";") + GetLatexNameWithUnits() +
+           ";" + ordinate.GetLatexNameWithUnits() +
+           ";P(" + GetLatexName() + ", " + ordinate.GetLatexName() + " | Data)";
+}
+
+// ---------------------------------------------------------
+std::string BCVariable::H3Title(const BCVariable& ordinate_y, const BCVariable& ordinate_z) const
+{
+    return std::string(";") + GetLatexNameWithUnits() +
+           ";" + ordinate_y.GetLatexNameWithUnits() +
+           ";" + ordinate_z.GetLatexNameWithUnits() +
+           ";P(" + GetLatexName() + ", " + ordinate_y.GetLatexName() + ", " + ordinate_z.GetLatexName() + " | Data)";
+}
+
+// ---------------------------------------------------------
 TH1* BCVariable::CreateH1(const std::string& name) const
 {
-    return new TH1D(name.data(),
-                    (";" + GetLatexNameWithUnits() +
-                     ";P(" + GetLatexName() + " | Data)").data(),
+    BCAux::RootSideEffectGuard g;
+    return new TH1D(name.data(), H1Title().data(),
                     fNbins, fLowerLimit, fUpperLimit);
 }
 
 // ---------------------------------------------------------
 TH2* BCVariable::CreateH2(const std::string& name, const BCVariable& ordinate) const
 {
-    return new TH2D(name.data(),
-                    (";" + GetLatexNameWithUnits() +
-                     ";" + ordinate.GetLatexNameWithUnits() +
-                     ";P(" + GetLatexName() + ", " + ordinate.GetLatexName() + " | Data)").data(),
+    BCAux::RootSideEffectGuard g;
+    return new TH2D(name.data(), H2Title(ordinate).data(),
                     fNbins, fLowerLimit, fUpperLimit,
                     ordinate.GetNbins(), ordinate.GetLowerLimit(), ordinate.GetUpperLimit());
 }
@@ -128,11 +148,8 @@ TH2* BCVariable::CreateH2(const std::string& name, const BCVariable& ordinate) c
 // ---------------------------------------------------------
 TH3* BCVariable::CreateH3(const std::string& name, const BCVariable& ordinate_y, const BCVariable& ordinate_z) const
 {
-    return new TH3D(name.data(),
-                    (";" + GetLatexNameWithUnits() +
-                     ";" + ordinate_y.GetLatexNameWithUnits() +
-                     ";" + ordinate_z.GetLatexNameWithUnits() +
-                     ";P(" + GetLatexName() + ", " + ordinate_y.GetLatexName() + ", " + ordinate_z.GetLatexName() + " | Data)").data(),
+    BCAux::RootSideEffectGuard g;
+    return new TH3D(name.data(), H3Title(ordinate_y, ordinate_z).data(),
                     fNbins, fLowerLimit, fUpperLimit,
                     ordinate_y.GetNbins(), ordinate_y.GetLowerLimit(), ordinate_y.GetUpperLimit(),
                     ordinate_z.GetNbins(), ordinate_z.GetLowerLimit(), ordinate_z.GetUpperLimit());

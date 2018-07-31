@@ -1,19 +1,19 @@
 #ifndef __BCLOG__H
 #define __BCLOG__H
 
-/*!
- * \class BCLog
- * \brief A class for managing log messages.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.0
- * \date 08.2008
- * \detail This class manages log messages for printing on the screen
+/**
+ * @class BCLog
+ * @brief A class for managing log messages.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.0
+ * @date 08.2008
+ * @details This class manages log messages for printing on the screen
  * and into a log file
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -88,6 +88,12 @@ public:
     static BCLog::LogLevel GetLogLevelScreen()
     { return fMinimumLogLevelScreen; };
 
+    /**
+     * Returns true if the loglevel is prefixed to every message.
+     * Default: true */
+    static bool GetPrefix()
+    { return fPrefix; }
+
     /** @} */
     /** \name Setters */
     /** @{ */
@@ -116,6 +122,11 @@ public:
      * @param loglevel log level */
     static void SetLogLevel(BCLog::LogLevel loglevel)
     { SetLogLevel(loglevel, loglevel); };
+
+    /**
+     * Toggle if the loglevel is prefixed to every message. */
+    static void SetPrefix(bool flag)
+    { fPrefix = flag; }
 
     /** @} */
     /** \name Miscellaneous */
@@ -199,8 +210,12 @@ private:
     static std::ofstream fOutputStream;
 
     /**
-     * Specifies wheather there were output printouts already */
+     * Specifies whether there were output printouts already */
     static bool fFirstOutputDone;
+
+    /**
+     * Include a prefix before each message? */
+    static bool fPrefix;
 
 };
 

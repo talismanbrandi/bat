@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -10,6 +10,7 @@
 
 #include "BCH1D.h"
 
+#include "BCAux.h"
 #include "BCLog.h"
 
 #include <TArrow.h>
@@ -86,7 +87,7 @@ void BCH1D::CheckIntervals(std::vector<double>& intervals)
         BCHistogramBase::CheckIntervals(fIntervals, (fBandType == kLowerLimit) ? -1 : +1);
 
     // check number of intervals values if user-specified
-    if (fBandType == kUserSpecified and intervals.size() == 1) {
+    if (fBandType == kUserSpecified && intervals.size() == 1) {
         BCLog::OutWarning("BCH1D::CheckIntervals : at least two intervals values must be specified for user-specified intervals. No bands will be drawn.");
         intervals.clear();
     }
@@ -133,10 +134,9 @@ std::vector<double> BCH1D::DefaultIntervals(int nbands)
 // ---------------------------------------------------------
 void BCH1D::DrawBands(const std::string& options)
 {
-    GetHistogram()->SetLineColor(GetLineColor());
     GetHistogram()->Draw(options.data());
 
-    if ( fBandType == kNoBands or GetHistogram()->Integral() <= 0 )
+    if ( fBandType == kNoBands || GetHistogram()->Integral() <= 0 )
         return;
 
     std::vector<double> intervals = fIntervals;
@@ -161,11 +161,12 @@ void BCH1D::DrawBands(const std::string& options)
     int i0 = fROOTObjects.size();
     for (int i = nbands - 1; i >= 0; --i) {
 
-        TH1* hist_band = 0;
+        TH1* hist_band = NULL;
         std::string legend_text;
 
         if (fBandType == kSmallestInterval) {
-            hist_band = (TH1*) GetHistogram()->Clone((std::string(GetHistogram()->GetName()) + "_band").data());
+            hist_band = BCAux::OwnClone(GetHistogram(), std::string(GetHistogram()->GetName()) + "_band");
+
             for (int b = 1; b <= hist_band->GetNbinsX(); ++b)
                 if (hist_band->GetBinContent(b) < bounds[i].first)
                     hist_band->SetBinContent(b, 0);
@@ -208,7 +209,7 @@ void BCH1D::DrawBands(const std::string& options)
         // set style of band histogram
         hist_band->SetFillStyle(GetBandFillStyle());
         hist_band->SetFillColor(GetBandColor(i));
-        hist_band->SetLineColor(0);
+        hist_band->SetLineColor(GetBandColor(i));
         hist_band->SetLineWidth(0);
         hist_band->SetLineStyle(0);
         hist_band->SetTitle(Form(legend_text.data(), hist_band->Integral("width") * 100));
@@ -249,9 +250,9 @@ void BCH1D::DrawQuantiles(const unsigned n)
         return;
 
     TLine* quantile_line = new TLine();
+    fROOTObjects.push_back(quantile_line);
     quantile_line->SetLineStyle(2);
     quantile_line->SetLineColor(GetQuantileLineColor());
-    fROOTObjects.push_back(quantile_line);
 
     double ymin = gPad->GetUymin();
     double ymax = gPad->GetUymax();
@@ -309,7 +310,7 @@ void BCH1D::DrawQuantiles(const unsigned n)
 // ---------------------------------------------------------
 void BCH1D::DrawMedian()
 {
-    if ( !fDrawMedian or fNQuantiles == 2)
+    if ( !fDrawMedian || fNQuantiles == 2)
         return;
 
     double ymin = gPad->GetUymin();
@@ -322,22 +323,22 @@ void BCH1D::DrawMedian()
     }
 
     TMarker* marker_median = new TMarker(GetMedian(), ymid * (fLogy ? pow(ymax / ymin, -0.1) : 0.8), 21);
+    fROOTObjects.push_back(marker_median);
     marker_median->SetMarkerColor(GetMarkerColor());
     marker_median->SetMarkerSize(fMarkerScale * gPad->GetWNDC());
     marker_median->Draw();
-    fROOTObjects.push_back(marker_median);
 
     TLegendEntry* le = 0;
     double q[2], p[2] = {0.1587, 0.8413};
 
-    if ( fDrawCentral68 and GetHistogram()->GetQuantiles(2, q, p) == 2 ) {
+    if (fDrawCentral68 && GetHistogram()->GetQuantiles(2, q, p) == 2) {
         TArrow* arrow_ci = new TArrow(q[0], ymid * (fLogy ? pow(ymax / ymin, -0.1) : 0.8),
                                       q[1], ymid * (fLogy ? pow(ymax / ymin, -0.1) : 0.8),
                                       0.02 * gPad->GetWNDC(), "<|>");
+        fROOTObjects.push_back(arrow_ci);
         arrow_ci->SetLineColor(marker_median->GetMarkerColor());
         arrow_ci->SetFillColor(marker_median->GetMarkerColor());
         arrow_ci->Draw();
-        fROOTObjects.push_back(arrow_ci);
         le = AddLegendEntry(arrow_ci, "median and central 68% interval", "PL");
         le->SetLineColor(arrow_ci->GetLineColor());
     } else
@@ -350,7 +351,7 @@ void BCH1D::DrawMedian()
 // ---------------------------------------------------------
 TH1* BCH1D::GetSubHistogram(double min, double max, const std::string& name, bool preserve_range)
 {
-    if (min == max or !GetHistogram())
+    if (min == max || !GetHistogram())
         return 0;
     if (min > max)
         return GetSubHistogram(max, min, name);
@@ -358,15 +359,16 @@ TH1* BCH1D::GetSubHistogram(double min, double max, const std::string& name, boo
     double xmin = GetHistogram()->GetXaxis()->GetXmin();
     double xmax = GetHistogram()->GetXaxis()->GetXmax();
 
-    if (max<xmin or min>xmax)
+    if (max < xmin || min > xmax)
         return 0;
 
     std::string newName(name);
     if (name.empty())
         newName = std::string(GetHistogram()->GetName()) + "_subhist";
 
-    if ( min <= xmin and max >= xmax )
-        return (TH1*) GetHistogram()->Clone(name.data());
+    if ( min <= xmin && max >= xmax ) {
+        return BCAux::OwnClone(GetHistogram(), name);
+    }
     min = std::max<double>(min, xmin);
     max = std::min<double>(max, xmax);
 
@@ -381,16 +383,20 @@ TH1* BCH1D::GetSubHistogram(double min, double max, const std::string& name, boo
     unsigned n = 1;
     for (int i = i0; i <= i1; ++i) {
         bins[n++] = GetHistogram()->GetXaxis()->GetBinLowEdge(i);
-        if (min > GetHistogram()->GetXaxis()->GetBinLowEdge(i) and min < GetHistogram()->GetXaxis()->GetBinUpEdge(i))
+        if (min > GetHistogram()->GetXaxis()->GetBinLowEdge(i) && min < GetHistogram()->GetXaxis()->GetBinUpEdge(i))
             bins[n++] = min;
-        if (max > GetHistogram()->GetXaxis()->GetBinLowEdge(i) and max < GetHistogram()->GetXaxis()->GetBinUpEdge(i))
+        if (max > GetHistogram()->GetXaxis()->GetBinLowEdge(i) && max < GetHistogram()->GetXaxis()->GetBinUpEdge(i))
             bins[n++] = max;
     }
-    if (preserve_range or max == GetHistogram()->GetXaxis()->GetBinUpEdge(i1))
+    if (preserve_range || max == GetHistogram()->GetXaxis()->GetBinUpEdge(i1))
         bins[n++] = GetHistogram()->GetXaxis()->GetBinUpEdge(i1);
 
     // now define the new histogram
-    TH1D* h0 = new TH1D(newName.data(), Form("%s;%s;%s", GetHistogram()->GetTitle(), GetHistogram()->GetXaxis()->GetTitle(), GetHistogram()->GetYaxis()->GetTitle()), n - 1, &bins[0]);
+    TH1* h0;
+    {
+        BCAux::RootSideEffectGuard g;
+        h0 = new TH1D(newName.data(), Form("%s;%s;%s", GetHistogram()->GetTitle(), GetHistogram()->GetXaxis()->GetTitle(), GetHistogram()->GetYaxis()->GetTitle()), n - 1, &bins[0]);
+    }
     imin = h0->FindFixBin(min);
     imax = h0->FindFixBin(max);
     for (int i = imin; i <= imax; ++i)
@@ -408,27 +414,38 @@ void BCH1D::PrintSummary(const std::string& prefix, unsigned prec, std::vector<d
     double q[7];
     GetHistogram()->GetQuantiles(7, q, p);
 
-    BCLog::OutSummary(prefix + Form("Mean +- sqrt(Variance):         %.*g +- %.*g", prec, GetHistogram()->GetMean(), prec, GetHistogram()->GetRMS()));
-    BCLog::OutSummary(prefix + Form("Median +- central 68%% interval: %.*g +  %.*g - %.*g", prec, q[3], prec, q[4] - q[3], prec, q[2] - q[3]));
-    BCLog::OutSummary(prefix + Form("(Marginalized) mode:            %.*g",  prec, GetLocalMode()));
-    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %.*g", 100 * p[0], prec, q[0]));
-    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %.*g", 100 * p[1], prec, q[1]));
-    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %.*g", 100 * p[2], prec, q[2]));
-    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %.*g", 100 * p[4], prec, q[4]));
-    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %.*g", 100 * p[5], prec, q[5]));
-    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %.*g", 100 * p[6], prec, q[6]));
+    BCLog::OutSummary(prefix + Form("Mean +- sqrt(Variance):         %+.*g +- %.*g", prec, GetHistogram()->GetMean(), prec, GetHistogram()->GetRMS()));
+    BCLog::OutSummary(prefix + Form("Median +- central 68%% interval: %+.*g + %.*g - %.*g", prec, q[3], prec, q[4] - q[3], prec, q[3] - q[2]));
+    BCLog::OutSummary(prefix + Form("(Marginalized) mode:            %+.*g",  prec, GetLocalMode()));
+    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %+.*g", 100 * p[0], prec, q[0]));
+    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %+.*g", 100 * p[1], prec, q[1]));
+    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %+.*g", 100 * p[2], prec, q[2]));
+    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %+.*g", 100 * p[4], prec, q[4]));
+    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %+.*g", 100 * p[5], prec, q[5]));
+    BCLog::OutSummary(prefix + Form("%2.0f%% quantile:                   %+.*g", 100 * p[6], prec, q[6]));
 
     std::vector<BCH1D::BCH1DSmallestInterval> v = GetSmallestIntervals(intervals);
-    for (unsigned i = 0; i < v.size(); ++i) {
-        BCLog::OutSummary(prefix + Form("Smallest interval%s containing %.1f%% and local mode%s:", (v[i].intervals.size() > 1 ? "s" : ""), v[i].total_mass, (v[i].intervals.size() > 1 ? "s" : "")));
-        for (unsigned j = 0; j < v[i].intervals.size(); ++j)
-            BCLog::OutSummary(prefix + Form("(%.*g, %.*g) (local mode at %.*g with rel. height %.*g; rel. area %.*g)",
-                                            prec, v[i].intervals[j].xmin,
-                                            prec, v[i].intervals[j].xmax,
-                                            prec, v[i].intervals[j].mode,
-                                            prec, v[i].intervals[j].relative_height,
-                                            prec, v[i].intervals[j].relative_mass));
-    }
+    for (unsigned i = 0; i < v.size(); ++i)
+        v[i].PrintSummary(prefix, prec);
+}
+
+// ---------------------------------------------------------
+void BCH1D::BCH1DSmallestInterval::PrintSummary(const std::string& prefix, unsigned prec) const
+{
+    BCLog::OutSummary(prefix + Form("Smallest interval%s containing %.1f%% and local mode%s:", (intervals.size() > 1 ? "s" : ""), 100. * total_mass, (intervals.size() > 1 ? "s" : "")));
+    for (unsigned i = 0; i < intervals.size(); ++i)
+        intervals[i].PrintSummary(prefix, prec);
+}
+
+// ---------------------------------------------------------
+void BCH1D::BCH1DInterval::PrintSummary(const std::string& prefix, unsigned prec) const
+{
+    BCLog::OutSummary(prefix + Form("(%.*g, %.*g) (local mode at %.*g with rel. height %.*g; rel. area %.*g)",
+                                    prec, xmin,
+                                    prec, xmax,
+                                    prec, mode,
+                                    prec, relative_height,
+                                    prec, relative_mass));
 }
 
 // ---------------------------------------------------------
@@ -449,7 +466,7 @@ std::vector<BCH1D::BCH1DSmallestInterval> BCH1D::GetSmallestIntervals(std::vecto
                 interval.relative_height = GetHistogram()->GetBinContent(b);
                 interval.mode = GetHistogram()->GetBinCenter(b);
                 interval.relative_mass += GetHistogram()->Integral(b, b, "width");
-                while (b < GetHistogram()->GetNbinsX() and GetHistogram()->GetBinContent(b + 1) > bounds[i].first) {
+                while (b < GetHistogram()->GetNbinsX() and GetHistogram()->GetBinContent(b + 1) >= bounds[i].first) {
                     interval.xmax = GetHistogram()->GetXaxis()->GetBinUpEdge(++b);
                     interval.relative_mass += GetHistogram()->Integral(b, b, "width");
                     if (GetHistogram()->GetBinContent(b) > interval.relative_height) {

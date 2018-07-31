@@ -1,18 +1,18 @@
 #ifndef __BCMTFCOMPARISONTOOL__H
 #define __BCMTFCOMPARISONTOOL__H
 
-/*!
- * \class BCMTFComparisonTool
- * \brief A helper class for BCMTFAnalysisFacility storing information.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.1
- * \date 06.2012
- * \detail This is a helper class for BCMTFAnalysisFacility storing information.
+/**
+ * @class BCMTFComparisonTool
+ * @brief A helper class for BCMTFAnalysisFacility storing information.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.1
+ * @date 06.2012
+ * @details This is a helper class for BCMTFAnalysisFacility storing information.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -142,4 +142,3 @@ private:
 // ---------------------------------------------------------
 
 #endif
-

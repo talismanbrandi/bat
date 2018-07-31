@@ -1,18 +1,18 @@
 #ifndef __BCMTFSYSTEMATIC__H
 #define __BCMTFSYSTEMATIC__H
 
-/*!
- * \class BCMTFSystematic
- * \brief A class desribing a systematic uncertainty.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.1
- * \date 06.2012
- * \detail This class describes a systematic uncertainty.
+/**
+ * @class BCMTFSystematic
+ * @brief A class desribing a systematic uncertainty.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.1
+ * @date 06.2012
+ * @details This class describes a systematic uncertainty.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -48,17 +48,17 @@ public:
 
     /**
      * @return The name of the systematic uncertainty. */
-    const std::string& GetName()
+    const std::string& GetName() const
     { return fName; };
 
     /**
      * @return The name of the systematic uncertainty. */
-    const std::string& GetSafeName()
+    const std::string& GetSafeName() const
     { return fSafeName; };
 
     /**
      * @return A flag defining if this uncertainty is active or not. */
-    bool GetFlagSystematicActive()
+    bool GetFlagSystematicActive() const
     { return fFlagSystematicActive; };
 
     /** @} */
@@ -95,4 +95,3 @@ private:
 // ---------------------------------------------------------
 
 #endif
-

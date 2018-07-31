@@ -1,14 +1,14 @@
-This file lists the people who contributed to the BAT project as of 12.11.2014
+This file lists the people who contributed to the BAT project as of spring 2018
 
 Authors in alphabetical order
 -----------------------------
 
-Frederik Beaujean -  Ludwig Maximilians University, Munich, Germany
-Allen Caldwell    -  MPI for Physics, Munich, Germany
-Daniel Greenwald  -  Technical University Munich, Germany
+Frederik Beaujean -  Ludwig Maximilians University, Munich, Germany (https://orcid.org/0000-0001-9901-8785)
+Allen Caldwell    -  MPI for Physics, Munich, Germany (https://orcid.org/0000-0003-0244-5129)
+Daniel Greenwald  -  TU Munich, Germany (https://orcid.org/0000-0001-6964-8399)
 Daniel Kollar     -  Nürnberg, Germany
-Kevin Kröninger   -  TU Dortmund University, Germany
-Oliver Schulz     -  MPI for Physics, Munich, Germany
+Kevin Kröninger   -  TU Dortmund University, Germany (https://orcid.org/0000-0001-9873-0228)
+Oliver Schulz     -  MPI for Physics, Munich, Germany (https://orcid.org/0000-0002-4200-5905)
 
 Contributors in alphabetical order
 -----------------------------------
@@ -17,6 +17,14 @@ Carsten Brachem
   - University of Göttingen, Germany
   - Simulated Annealing
 
+Sverre Dørheim
+  - TU Munich, Germany
+  - tree saving and concurrent reading
+
+Danny van Dyk
+  - Technical University Munich, Germany
+  - unit test framework
+
 James Ferrando
   - University of Oxford, UK
   - autoconf/automake installation procedure
@@ -24,6 +32,14 @@ James Ferrando
 Jing Liu
   - MPI for Physics, Munich, Germany
   - test suite for MCMC performance
+
+Thomas Pöschl
+  - TU Munich, Germany
+  - testing, numerous bug fixes
+
+Thomas Quante
+  - TU Dortmund, Germany
+  - bug fixes/reports on fast fitters and cuba integration
 
 Sankalp Sardana
   - Punjab University, India

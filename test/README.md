@@ -8,12 +8,12 @@ How to run unit tests
 How to add a new unit test
 ==========================
 
-1. Open `Makefile.am`, add `foo` to `TESTS` and add the sources as `foo_TEST_SOURCES = foo_TEST.cxx`.
+1. Open `Makefile.am`, add `foo.TEST` to `TESTS` and add the sources as `foo_TEST_SOURCES = foo_TEST.cxx`.
 2. Create `foo_TEST.cxx`, enter this skeleton:
 
 ```cpp
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.

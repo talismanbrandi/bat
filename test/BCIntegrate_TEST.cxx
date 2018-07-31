@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -162,6 +162,13 @@ public:
         m.SetRandomSeed(613);
         if (ndim >= 4)
             m.GetParameter(3).Fix(0.5);
+        // set to boundary of parameter range
+        // but the range should be small so the integral doesn't vanish
+        if (ndim == 5) {
+            BCParameter& p = m.GetParameter(4);
+            p.SetLimits(-15, 3);
+            p.Fix(3);
+        }
 
         /* optimization */
 
@@ -225,6 +232,10 @@ public:
         static const double eps = 5e-2;
         m.SetAbsolutePrecision(1e-12);
 
+        // Laplace itself is naturally implemented on the log scale
+        TEST_CHECK_RELATIVE_ERROR(m.IntegrateLaplace(), std::log(evidence), eps);
+
+        // but the general interface is on the linear scale
         TEST_CHECK_RELATIVE_ERROR(m.Integrate(BCIntegrate::kIntLaplace), evidence, eps);
 
         // sample mean needs huge number of evaluations
@@ -331,16 +342,37 @@ public:
         TEST_CHECK_NEARLY_EQUAL(0, m.GetBestFitParameters()[0], 5e-5);
     }
 
+    void Observables() const
+    {
+        static const unsigned npar = 3;
+        GaussModel m("observables", npar);
+        m.AddObservable("obs1", 0, 20, "#obs_1");
+        TEST_CHECK_EQUAL(m.GetNObservables(), 1);
+
+        {
+            m.MarginalizeAll();
+
+            /* make sure observables don't show up in best-fit parameters */
+            TEST_CHECK_EQUAL(m.GetNParameters(), npar);
+            TEST_CHECK_EQUAL(m.GetBestFitParameters().size(), npar);
+        }
+
+        {
+            m.FindMode();
+
+            TEST_CHECK_EQUAL(m.GetNParameters(), npar);
+            TEST_CHECK_EQUAL(m.GetBestFitParameters().size(), npar);
+            TEST_CHECK_EQUAL(m.GetBestFitParameterErrors().size(), npar);
+        }
+    }
+
     virtual void run() const
     {
+        Observables();
         Integration();
         Optimization();
         FixedParameters(2);
-        FixedParameters(4);
+        FixedParameters(5);
         Slice();
     }
 } bcIntegrateTest;
-
-// Local Variables:
-// compile-command: "make -C ../ && make BCIntegrate.TEST && ./BCIntegrate.TEST"
-// End:

@@ -1,14 +1,14 @@
 #ifndef __BCMTF__H
 #define __BCMTF__H
 
-/*!
- * \class BCMTF
- * \brief A class for fitting several templates to a data set.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.1
- * \date 06.2012
- * \detail This class can be used for fitting several template
+/**
+ * @class BCMTF
+ * @brief A class for fitting several templates to a data set.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.1
+ * @date 06.2012
+ * @details This class can be used for fitting several template
  * histograms to a data histogram. The templates are assumed to have
  * no statistical uncertainty whereas the data are assumed to have
  * Poissonian fluctuations in each bin. Several methods to judge the
@@ -16,7 +16,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -93,25 +93,28 @@ public:
     { return fProcessParIndexContainer.at(index); };
 
     /**
-     * @param name The systematic uncertainty index (mtf counting).
+     * @param index The systematic uncertainty index (mtf counting).
      * @return The parameter number corresponding to the systematic uncertainty (BAT counting). */
     int GetParIndexSystematic(int index) const
     { return fSystematicParIndexContainer.at(index); };
 
     /**
-     * @param name The channel index.
+     * @param index The channel index.
      * @return The channel object. */
     BCMTFChannel* GetChannel(int index)
     { return fChannelContainer.at(index); };
 
+    double GetPValue() const
+    { return fPValue; }
+
     /**
-     * @param name The process index.
+     * @param index The process index.
      * @return The process object. */
     BCMTFProcess* GetProcess(int index)
     { return fProcessContainer.at(index); };
 
     /**
-     * @param name The systematic ucnertainty index.
+     * @param index The systematic ucnertainty index.
      * @return The systematic uncertainty object. */
     BCMTFSystematic* GetSystematic(int index)
     { return fSystematicContainer.at(index); };
@@ -134,7 +137,8 @@ public:
      * @param channelname The name of the channel.
      * @param processname The name of the process.
      * @param hist The TH1D histogram.
-     * @param efficiency The efficiency of this process in this channel. */
+     * @param efficiency The efficiency of this process in this channel.
+     * @param norm The norm of this process in this channel. */
     void SetTemplate(const std::string& channelname, const std::string& processname, TH1D hist, double efficiency = 1., double norm = 1.);
 
     /**
@@ -256,7 +260,7 @@ public:
      * @param parindex The parameter index.
      * @param channelindex The channel index.
      * @param processindex The process index.
-     * @param A reference to the parameters used to calculate the expectation.
+     * @param parameters A reference to the parameters used to calculate the expectation.
      * @return The expectation function value. */
     double ExpectationFunction(int parindex, int channelindex, int processindex, const std::vector<double>& parameters);
 
@@ -325,10 +329,11 @@ public:
     /**
      * Calculates and returns the fast p-value for the total likelihood as test statistic.
      *
-     * @note Obtain the results with @see BCModel::GetPValue and the value corrected for degrees
-     * of freedom with @see BCModel::GetPValueNDoF
+     * @note The result is stored and can be accesses with GetPValue()
+     * @see BCMath::FastPValue()
      *
      * @param parameters A reference to the parameters for which the model expectations are computed.
+     * @return The p-value
      */
     double CalculatePValue(const std::vector<double>& parameters);
 
@@ -355,6 +360,7 @@ public:
      * "b1" : draw bands showing the probability to observe a certain number of events given the expectation. The green (yellow, red) bands correspond to the central 68% (95%, 99.8%) probability \n
      * @param channelindex The channel index.
      * @param parameters A reference to the parameters used to scale the templates.
+     * @param filename Output file name.
      * @param options The plotting options. */
     void PrintStack(int channelindex, const std::vector<double>& parameters, const std::string& filename = "stack.pdf", const std::string& options = "e1b0stack");
 
@@ -364,8 +370,8 @@ public:
      * @param channelname The name of the channel.
      * @param parameters A reference to the parameters used to scale the templates.
      * @param options The plotting options.
-     *
-     * @see PrintStack(int channelindex, const std::vector<double> & parameters, const std::string& filename = "stack.pdf", const std::string& options = "e1b0stack") */
+     * @param filename Output file name.
+     * @see PrintStack() */
     void PrintStack(const std::string& channelname, const std::vector<double>& parameters, const std::string& filename = "stack.pdf", const std::string& options = "e1b0stack")
     {
         return PrintStack(GetChannelIndex(channelname), parameters, filename, options);
@@ -377,9 +383,9 @@ public:
     /** @{ */
 
     /**
-     * Calculates natural logarithm of the likelihood.
+     * Calculate natural logarithm of the likelihood.
      * Method needs to be overloaded by the user.
-     * @param params A set of parameter values
+     * @param parameters A set of parameter values
      * @return Natural logarithm of the likelihood */
     double LogLikelihood(const std::vector<double>& parameters);
 
@@ -439,8 +445,12 @@ private:
     double fPValue;
 
     /**
-     * P value accounting for degrees of freedom. */
-    double fPValueNDoF;
+     * Copying can lead to a double-delete */
+    BCMTF(const BCMTF&);
+
+    /**
+     * Copy-assignment can lead to a double-delete */
+    BCMTF& operator=(const BCMTF&);
 
 };
 // ---------------------------------------------------------

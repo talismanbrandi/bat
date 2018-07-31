@@ -1,14 +1,9 @@
 #include <BAT/BCLog.h>
-#include <BAT/BCAux.h>
 
 #include "BinomialModel.h"
 
 int main()
 {
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
-
     // open log file
     BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
 
@@ -19,10 +14,10 @@ int main()
     m.MarginalizeAll();
 
     // find mode starting from the best fit parameters
-    m.FindMode(m.GetBestFitParameters());
+    m.FindMode();
 
     // draw all marginalized distributions into a pdf file
-    m.PrintAllMarginalized("BinomialModel_plots.pdf");
+    m.PrintAllMarginalized(m.GetSafeName() + "_plots.pdf");
 
     // print results of the analysis to the log
     m.PrintSummary();

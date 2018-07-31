@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -132,7 +132,7 @@ void BCMTF::SetTemplate(const std::string& channelname, const std::string& proce
     hist.SetLineStyle(linestyle);
 
     // create new histogram
-    TH1D* temphist = new TH1D(hist);
+    TH1D* temphist = BCAux::OwnClone(&hist);
 
     // set histogram
     bctemplate->SetHistogram(temphist, norm);
@@ -205,18 +205,7 @@ void BCMTF::SetData(const std::string& channelname, TH1D hist, double minimum, d
         data->SetHistogram(0);
     }
 
-    // remove old uncertainty histograms if they exist
-    if (channel->GetHistUncertaintyBandExpectation()) {
-        delete channel->GetHistUncertaintyBandExpectation();
-        channel->SetHistUncertaintyBandExpectation(0);
-    }
-    if (channel->GetHistUncertaintyBandPoisson()) {
-        delete channel->GetHistUncertaintyBandPoisson();
-        channel->SetHistUncertaintyBandPoisson(0);
-    }
-
     // create new histograms for uncertainty bands
-    //	 double minimum = floor(TMath::Max(0., hist.GetMinimum() - 7.*sqrt(hist.GetMinimum())));
     if (minimum == -1)
         minimum = 0;
     if (maximum == -1)
@@ -227,14 +216,24 @@ void BCMTF::SetData(const std::string& channelname, TH1D hist, double minimum, d
         a[i] = hist.GetXaxis()->GetBinLowEdge(i + 1);
     }
 
-    TH2D* hist_uncbandexp = new TH2D(Form("UncertaintyBandExpectation_%s_%d", GetSafeName().data(), channelindex), "", hist.GetNbinsX(), &a[0], 1000, minimum, maximum);
-    hist_uncbandexp->SetStats(kFALSE);
+    // histograms are deleted by us, prevent issues if a TFile happens to be around
+    // https://github.com/bat/bat/issues/166
+    TH1D* hist_copy;
+    TH2D* hist_uncbandexp, *hist_uncbandpoisson;
+    {
+        BCAux::RootSideEffectGuard g;
 
-    TH2D* hist_uncbandpoisson = new TH2D(Form("UncertaintyBandPoisson_%s_%d", GetSafeName().data(), channelindex), "", hist.GetNbinsX(), &a[0], int(maximum - minimum), minimum, maximum);
-    hist_uncbandpoisson->SetStats(kFALSE);
+        hist_copy = new TH1D(hist);
+
+        hist_uncbandexp = new TH2D(Form("UncertaintyBandExpectation_%s_%d", GetSafeName().data(), channelindex), "", hist.GetNbinsX(), &a[0], 1000, minimum, maximum);
+        hist_uncbandexp->SetStats(kFALSE);
+
+        hist_uncbandpoisson = new TH2D(Form("UncertaintyBandPoisson_%s_%d", GetSafeName().data(), channelindex), "", hist.GetNbinsX(), &a[0], int(maximum - minimum), minimum, maximum);
+        hist_uncbandpoisson->SetStats(kFALSE);
+    }
 
     // set histograms
-    data->SetHistogram(new TH1D(hist), hist.Integral());
+    data->SetHistogram(hist_copy, hist.Integral());
     channel->SetHistUncertaintyBandExpectation(hist_uncbandexp);
     channel->SetHistUncertaintyBandPoisson(hist_uncbandpoisson);
 
@@ -1107,7 +1106,6 @@ double BCMTF::CalculatePValue(const std::vector<double>& parameters)
     // create pseudo experiments
     static const unsigned nIterations = unsigned(1e5);
     fPValue = BCMath::FastPValue(observation, expectation, nIterations, fRandom.GetSeed());
-    fPValueNDoF = BCMath::CorrectPValue(fPValue, parameters.size(), observation.size());
 
     return fPValue;
 }
@@ -1194,7 +1192,7 @@ void BCMTF::MCMCUserIterationInterface()
         for (int ibin = 1; ibin <= nbins; ++ibin) {
 
             // get expectation value
-            double expectation = Expectation(ichannel, ibin, fMCMCx[0]);
+            double expectation = Expectation(ichannel, ibin, Getx(0));
 
             // fill uncertainty band on expectation
             hist_uncbandexp->Fill(hist_data->GetBinCenter(ibin), expectation);

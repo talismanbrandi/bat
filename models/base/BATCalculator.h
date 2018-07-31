@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * Original authors: Gregory Schott and Stefan A. Schmitz with inspiration from
@@ -34,6 +34,8 @@
 namespace RooStats
 {
 
+/**
+ * Adapter to call BAT from within RooStats to compute credibility intervals. */
 class BATCalculator : public IntervalCalculator, public TNamed
 {
 
@@ -42,6 +44,7 @@ public:
     /// constructor
     BATCalculator( );
 
+    //! @nowarn
     BATCalculator( RooAbsData& data,
                    RooAbsPdf&   pdf,
                    RooArgSet&   POI,
@@ -144,6 +147,7 @@ protected:
 
     void ClearAll() const;
 
+    //! @endnowarn
 private:
     RooAbsData* fData;
     RooAbsPdf* fPdf;

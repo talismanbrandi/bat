@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -54,12 +54,12 @@ public:
 
     /**
      * Calculates natural logarithm of the likelihood.
-     * @param params A set of parameter values
      * @return Natural logarithm of the likelihood */
     virtual double LogLikelihood(const std::vector<double>& /*params*/)
     { return 0; }
 
 };
 // ---------------------------------------------------------
+
 
 #endif

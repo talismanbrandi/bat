@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -92,11 +92,12 @@ public:
 
             // abuse stats object for one parameter, no observables, dummy probability
             BCEngineMCMC::Statistics s(1, 0);
-            std::vector<double> x(1);
-            std::vector<double> obs;
+            BCEngineMCMC::ChainState cs(0);
+            cs.log_probability = 0.;
+            cs.parameters.assign(1, 0);
             for (unsigned i = 0; i < N; ++i) {
-                x.front() = BCMath::Random::Gamma(&rng, a, b);
-                s.Update(0.0, x, obs);
+                cs.parameters.front() = BCMath::Random::Gamma(&rng, a, b);
+                s.Update(cs);
             }
             // 1st moment: O(1/sqrt(N)), 2nd moment: order of magnitude larger
             TEST_CHECK_RELATIVE_ERROR(s.mean.front(), a * b, 1.0 / std::sqrt(N));
@@ -104,7 +105,3 @@ public:
         }
     }
 } gammaTest;
-
-// Local Variables:
-// compile-command: "make check TESTS= && (./BCMath.TEST || cat test-suite.log)"
-// End:

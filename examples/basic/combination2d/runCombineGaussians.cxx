@@ -1,14 +1,10 @@
 #include <BAT/BCLog.h>
-#include <BAT/BCAux.h>
+//#include <BAT/BCAux.h>
 
 #include "CombinationModel.h"
 
 int main()
 {
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
-
     // open log file
     BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
 
@@ -21,17 +17,17 @@ int main()
     m.MarginalizeAll();
 
     // find mode
-    m.FindMode(m.GetBestFitParameters());
+    m.FindMode();
 
     // draw all marginalized distributions into a PostScript file
     m.PrintAllMarginalized("CombinationModel_plots.pdf");
 
     // print summary plots
-    m.PrintParameterPlot("CombinationModel_parameters.pdf");
-    m.PrintCorrelationPlot("CombinationModel_correlation.pdf");
+    m.PrintParameterPlot(m.GetSafeName() + "_parameters.pdf");
+    m.PrintCorrelationPlot(m.GetSafeName() + "_correlation.pdf");
 
-    // m.SetKnowledgeUpdateDrawingStyle(BCModel::kKnowledgeUpdateDetailedPosterior);
-    m.PrintKnowledgeUpdatePlots("CombinationModel_update.pdf");
+    // m.SetKnowledgeUpdateDrawingStyle(BCAux::kKnowledgeUpdateDetailedPosterior);
+    m.PrintKnowledgeUpdatePlots(m.GetSafeName() + "_update.pdf");
 
     // print results of the analysis the log
     m.PrintSummary();

@@ -2,14 +2,15 @@
 #define __BCPARAMETERSET__H
 
 /**
- * @class BCParameterSet Wrapper to allow access by name into list of BCParameter.
+ * @class BCParameterSet
+ * @brief Wrapper to allow access by name into list of BCParameter.
  * @author Frederik Beaujean
  * @author Daniel Greenwald
  * @note Parameters are not owned, and will not be deleted by BCParameterSet.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -96,6 +96,9 @@ void BCH2D::DrawBands(const std::string& options)
         return;
     }
 
+    if (fNBands == 0)
+        return;
+
     std::vector<double> intervals = fIntervals;
     CheckIntervals(intervals);
 
@@ -143,7 +146,7 @@ void BCH2D::DrawBands(const std::string& options)
 
     if (fBandFillStyle <= 0) {
         GetHistogram()->SetLineColor(GetLineColor());
-        GetHistogram()->Draw((options + "cont2").data());
+        GetHistogram()->Draw(Form("%scont%d", options.data(), static_cast<int>(std::abs(fBandFillStyle))));
     } else {
         gStyle->SetPalette(colors.size(), &colors[0]);
         GetHistogram()->SetFillStyle(fBandFillStyle);
@@ -161,7 +164,7 @@ void BCH2D::DrawBands(const std::string& options)
             le->SetLineWidth(0);
             le->SetLineStyle(0);
         } else {
-            TLegendEntry* le = AddBandLegendEntry((TObject*)0, legend_text[i].data(), "L");
+            TLegendEntry* le = AddBandLegendEntry(GetHistogram(), legend_text[i].data(), "L");
             le->SetLineColor(GetLineColor());
             le->SetLineStyle(levels.size() - i);
         }
@@ -302,4 +305,3 @@ void BCH2D::DrawProfileGraphs()
         AddLegendEntry(graph_profile, ytext.data(), "L");
     }
 }
-

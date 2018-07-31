@@ -12,7 +12,7 @@
 
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -37,7 +37,7 @@ public:
     /** \name Constructors and destructor */
     /** @{ */
 
-    /** Constructor for constant unit prior*/
+    /** Constructor for constant unit prior */
     BCConstantPrior();
 
     /** Constructor for constant 1/range prior */
@@ -87,7 +87,7 @@ public:
     virtual double GetRandomValue(double xmin, double xmax, TRandom* const R = NULL);
 
 protected:
-
+    ///> log of the width of the parameter range
     double fLogRangeWidth;
 
 };

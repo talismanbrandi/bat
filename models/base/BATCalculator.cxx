@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * Original authors: Gregory Schott and Stefan A. Schmitz with inspiration from
@@ -206,7 +206,8 @@ RooAbsPdf* BATCalculator::GetPosteriorPdf1D(const char* POIname) const
     _myRooInterface->FindMode();
     BCH1D myPosterior = _myRooInterface->GetMarginalized(POIname);
     TH1* posteriorTH1D = myPosterior.GetHistogram();
-    _posteriorTH1D = static_cast<TH1D*>(posteriorTH1D->Clone("_posteriorTH1D"));
+    // Is this a memory leak? A guard led to segfault, see https://github.com/bat/bat/pull/301#issuecomment-390121730
+    _posteriorTH1D =  static_cast<TH1D*>(BCAux::OwnClone(posteriorTH1D, "_posteriorTH1D"));
     RooDataHist* posteriorRooDataHist = new RooDataHist("posteriorhist", "", fPOI, posteriorTH1D);
     fPosteriorPdf = new RooHistPdf("posteriorPdf", "", fPOI, *posteriorRooDataHist);
 

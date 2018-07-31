@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -26,7 +26,7 @@ bool BCPriorModel::PreparePriorModel()
 {
     // copy parameters and observables
     fParameters = fModel.GetParameters();
-    fObservables = BCObservableSet(fModel.GetObservables(), true);
+    fObservables = fModel.GetObservables();
 
     // but use binning that was used by model
     for (unsigned i = 0; i < fModel.GetNVariables(); ++i)

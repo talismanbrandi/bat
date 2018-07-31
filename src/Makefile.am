@@ -7,21 +7,16 @@ lib_LTLIBRARIES = libBAT.la
 libBAT_la_LDFLAGS = -version-info 1:0:0
 
 # this fixes the linker error on ubuntu with gcc > 4.4 with missing reference to TCanvas(bool) etc.
-libBAT_la_LDFLAGS += -L$(ROOTLIBDIR)
+libBAT_la_LDFLAGS += $(ROOTLIBDIRFLAGS)
 libBAT_la_LIBADD = $(ROOTLIBS)
 
 AM_CXXFLAGS = $(ROOTAUXCFLAGS) -Wall -fPIC -I$(top_srcdir)/BAT -I.includes $(ROOTCFLAGS) $(CUBAINCLUDE)
+AM_CXXFLAGS += @AM_CXXFLAGS@
 AM_LDFLAGS  = -O
 AM_SOFLAGS  = -shared
 
 if CUBA
 libBAT_la_LIBADD += $(CUBALIB)
-endif
-
-if DEBUG
-AM_CXXFLAGS += -g -O0 -Wall -Wextra -pedantic -Wno-long-long -Wno-unknown-pragmas
-else
-AM_CXXFLAGS += -O2 -Wno-unknown-pragmas
 endif
 
 if IS_DARWIN
@@ -32,42 +27,51 @@ EXTRA_DIST = LinkDef.h
 
 library_includedir= $(includedir)/BAT
 
+# cling >6.08 requires headers in order of least dependency. The 1st
+# group of headers do not include any other BAT header. The 2nd group
+# includes only headers from the 1st...
+#
+# 1st group: grep -L '#include.*BC.*\.h' BC*.h
 incs= \
+	BCHistogramBase.h \
+	BCLog.h \
+	BCMath.h \
+	BCVariable.h \
+	\
 	BCDataPoint.h \
 	BCDataSet.h \
-	BCHistogramBase.h \
 	BCH1D.h \
 	BCH2D.h \
+	BCParameter.h \
+	\
+	BCAux.h \
 	BCPrior.h \
+	\
+	BCVariableSet.h \
+	\
 	BCConstantPrior.h \
 	BCGaussianPrior.h \
 	BCSplitGaussianPrior.h \
 	BCCauchyPrior.h \
+	BCObservable.h \
 	BCTF1Prior.h \
 	BCTF1LogPrior.h \
 	BCTH1Prior.h \
 	BCPositiveDefinitePrior.h \
-	BCObservableSet.h \
+	\
 	BCParameterSet.h \
-	BCObservable.h \
-	BCParameter.h \
-	BCVariable.h \
+	\
 	BCEngineMCMC.h \
 	BCIntegrate.h \
 	BCModel.h \
 	BCEmptyModel.h \
 	BCPriorModel.h \
-	BCModelManager.h \
-	BCLog.h \
-	BCMath.h \
-	BCAux.h
+	BCModelManager.h
 
-non_source_incs = \
-	BCVariableSet.h
+EXTRA_DIST += $(incs:%.h=$(top_srcdir)/BAT/%.h)
 
-EXTRA_DIST += $(incs:%.h=$(top_srcdir)/BAT/%.h) $(non_source_incs:%.h=$(top_srcdir)/BAT/%.h)
-
-nodist_library_include_HEADERS = $(incs:%.h=.includes/$(PACKAGE)/%.h) $(non_source_incs:%.h=.includes/$(PACKAGE)/%.h)
+# copy headers and change `#include "BC*.h"` -> `#include <BC*.h>` for root integration
+nodist_library_include_HEADERS = $(incs:%.h=.includes/$(PACKAGE)/%.h)
 
 $(nodist_library_include_HEADERS): .includes/$(PACKAGE)/%.h: $(top_srcdir)/BAT/%.h
 	mkdir -p .includes/$(PACKAGE)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -176,7 +176,7 @@ void BCModelManager::Integrate()
 // ---------------------------------------------------------
 double BCModelManager::BayesFactor(unsigned imodel1, unsigned imodel2) const
 {
-    if (imodel1 >= fModels.size() or imodel2 >= fModels.size())
+    if (imodel1 >= fModels.size() || imodel2 >= fModels.size())
         return -1;
 
     // Bayes Factors are the likelihoods integrated over the parameters

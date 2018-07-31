@@ -1,20 +1,20 @@
 #ifndef __BCH1D__H
 #define __BCH1D__H
 
-/*!
- * \class BCH1D
- * \brief A class for handling 1D distributions.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \author Daniel Greenwald
- * \version 1.0
- * \date 08.2008
- * \detail This class contains a TH1 histogram and some additional
+/**
+ * @class BCH1D
+ * @brief A class for handling 1D distributions.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @author Daniel Greenwald
+ * @version 1.0
+ * @date 08.2008
+ * @details This class contains a TH1 histogram and some additional
  * functions. It is used for marginalized distributions.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -94,7 +94,7 @@ public:
      * @param probability The probability.
      * @return The quantile of the distribution for the probability.
      * @see GetLimit(double probability) */
-    double GetQuantile(double probablity);
+    double GetQuantile(double probability);
 
     /**
      * Return the quantile of the distribution
@@ -224,28 +224,41 @@ public:
     void PrintSummary(const std::string& prefix = "", unsigned prec = 6, std::vector<double> intervals = std::vector<double>(0));
 
     /**
-     * \struct BCH1DInterval
      * Contains information about an interval. */
     struct BCH1DInterval {
+        //! @nowarn
         double xmin;
         double xmax;
         double mode;
         double relative_height;
         double relative_mass;
-
+        //! @endnowarn
         BCH1DInterval();
+
+        /**
+         * Print information to log
+         * @param prefix String to be prepended to every line.
+         * @param prec Precision of doubles to output. */
+        void PrintSummary(const std::string& prefix = "", unsigned prec = 6) const;
     };
 
     /**
-     * \struct BCH1DIntervals
      * Vector of intervals with information about total mass. */
     struct BCH1DSmallestInterval {
+        //! @nowarn
         std::vector<BCH1D::BCH1DInterval> intervals;
         double total_mass;
         double mode;
         double max_val;
+        //! @endnowarn
 
         BCH1DSmallestInterval();
+
+        /**
+         * Print information to log
+         * @param prefix String to be prepended to every line.
+         * @param prec Precision of doubles to output. */
+        void PrintSummary(const std::string& prefix = "", unsigned prec = 6) const;
     };
 
     /**
@@ -264,7 +277,10 @@ public:
      * new histogram can have 2 more bins than the original one as the
      * bins where min and max fall into will be split in two (except for the
      * case when min and/or max are equal to some of the original bin
-     * boundaries.
+     * boundaries).
+     *
+     * @note The caller is responsible for deletion of the returned object.
+     *
      * @param min lower boundary of the non-zero interval
      * @param max upper boundary of the non-zero interval
      * @param name Name for new histogram; empty string (default) appends "subhist" to histogram name.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -34,8 +34,7 @@ BCMTFChannel::BCMTFChannel(const std::string& name)
 // ---------------------------------------------------------
 BCMTFChannel::~BCMTFChannel()
 {
-    if (fData)
-        delete fData;
+    delete fData;
 
     for (unsigned int i = 0; i < fTemplateContainer.size(); ++i)
         delete (fTemplateContainer.at(i));
@@ -43,13 +42,17 @@ BCMTFChannel::~BCMTFChannel()
     for (unsigned int i = 0; i < fSystematicVariationContainer.size(); ++i)
         delete (fSystematicVariationContainer.at(i));
 
-    /*
-      if (fHistUncertaintyBandExpectation)
-      delete fHistUncertaintyBandExpectation;
+    delete fHistUncertaintyBandExpectation;
+    delete fHistUncertaintyBandPoisson;
+}
 
-      if (fHistUncertaintyBandPoisson)
-      delete fHistUncertaintyBandPoisson;
-    */
+// ---------------------------------------------------------
+void BCMTFChannel::SetHistUncertaintyBandExpectation(TH2D* hist)
+{
+    if (fHistUncertaintyBandExpectation) {
+        delete fHistUncertaintyBandExpectation;
+    }
+    fHistUncertaintyBandExpectation = hist;
 }
 
 // ---------------------------------------------------------
@@ -253,7 +256,11 @@ void BCMTFChannel::CalculateHistUncertaintyBandPoisson()
 // ---------------------------------------------------------
 TH1D* BCMTFChannel::CalculateUncertaintyBandPoisson(double minimum, double maximum, int color)
 {
-    TH1D* hist = new TH1D(*(fData->GetHistogram()));
+    TH1D* hist;
+    {
+        BCAux::RootSideEffectGuard g;
+        hist = new TH1D(*(fData->GetHistogram()));
+    }
     hist->SetMarkerSize(0);
     hist->SetFillColor(color);
     hist->SetFillStyle(1001);

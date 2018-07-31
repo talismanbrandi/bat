@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -18,8 +18,6 @@
 #include <TH1.h>
 #include <TH2.h>
 #include <TRandom.h>
-
-#include <iostream>
 
 // ---------------------------------------------------------
 BCPrior::BCPrior()
@@ -164,7 +162,8 @@ BCH1D BCPrior::GetBCH1D(TH1* bins, const std::string& name)
     if (!IsValid())
         return bch1;
 
-    TH1* h = (TH1*) bins->Clone(name.c_str());
+    TH1* h = BCAux::OwnClone(bins, name);
+
     h->Add(&GetFunction(), 1, "I");
 
     bch1 = h;
@@ -178,7 +177,7 @@ BCH2D BCPrior::GetBCH2D(BCPrior* ordinate, TH2* bins, const std::string& name)
 {
     BCH2D bch2;
 
-    if (!ordinate or !ordinate->IsValid())
+    if (!ordinate || !ordinate->IsValid())
         return bch2;
 
     BCH1D bch_x = GetBCH1D(bins->ProjectionX(), "tempx");
@@ -189,7 +188,7 @@ BCH2D BCPrior::GetBCH2D(BCPrior* ordinate, TH2* bins, const std::string& name)
     if  (!bch_y.Valid())
         return bch2;
 
-    TH2* h = (TH2*) bins->Clone(name.c_str());
+    TH2* h = BCAux::OwnClone(bins, name);
 
     // get x bins:
     std::vector<double> bin_edges_x(bch_x.GetHistogram()->GetNbinsX() + 1, 0);

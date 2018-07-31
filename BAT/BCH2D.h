@@ -1,20 +1,20 @@
 #ifndef __BCH2D__H
 #define __BCH2D__H
 
-/*!
- * \class BCH2D
- * \brief  A class for handling 2D distributions.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \author Daniel Greenwald
- * \version 1.0
- * \date 08.2008
- * \detail This class contains a TH2 histogram and some additional
+/**
+ * @class BCH2D
+ * @brief  A class for handling 2D distributions.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @author Daniel Greenwald
+ * @version 1.0
+ * @date 08.2008
+ * @details This class contains a TH2 histogram and some additional
  * functions. It is used for marginalized distributions.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -52,23 +52,24 @@ double BCMath::LogSplitGaus(double x, double mode, double sigma_below, double si
 // ---------------------------------------------------------
 double BCMath::LogPoisson(double x, double lambda)
 {
-    if (x < 0)
+    if (x < 0.0)
         return -std::numeric_limits<double>::infinity();
 
-    if (lambda == 0) {
-        BCLog::OutWarning("BCMath::LogPoisson : expectation value (lambda) cannot be zero.");
-        return std::numeric_limits<double>::quiet_NaN();
+    // for lambda == 0, only x = 0 allowed
+    if (lambda == 0.0) {
+        return (x == 0.0) ? 0.0 : -std::numeric_limits<double>::infinity();
     }
 
-    if (lambda < 0) {
+    if (lambda < 0.0) {
         BCLog::OutWarning("BCMath::LogPoisson : expectation value (lambda) cannot be negative.");
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    if (lambda > 899)
+    if (lambda > 899.0)
         return LogGaus(x, lambda, sqrt(lambda), true);
 
-    if (x == 0.)
+    // now lambda > 0
+    if (x == 0.0)
         return -lambda;
 
     return x * log(lambda) - lambda - ApproxLogFact(x);
@@ -81,7 +82,7 @@ double BCMath::LogApproxBinomial(unsigned n, unsigned k, double p)
         return std::numeric_limits<double>::quiet_NaN();
 
     // p in [0,1]
-    if (p < 0 or p > 1)
+    if (p < 0 || p > 1)
         return std::numeric_limits<double>::quiet_NaN();
 
     if (p == 0)										// no chance of success
@@ -112,13 +113,13 @@ double BCMath::LogBinomFactor(unsigned n, unsigned k)
     if (n < k)										// impose k < n requirement
         return std::numeric_limits<double>::quiet_NaN();
 
-    if (k == 0 or k == n)
+    if (k == 0 || k == n)
         return 0.;
-    if (k == 1 or k == n - 1)
+    if (k == 1 || k == n - 1)
         return log((double)n);
 
     // if no approximation needed
-    if ( n < CachedLogFactorials.size() and (n - k) < 10 )
+    if (n < CachedLogFactorials.size() && (n - k) < 10)
         return LogBinomFactorExact(n, k);
 
     // calculate final log(n over k) using approximations if necessary
@@ -177,7 +178,7 @@ namespace
 /**
  * Caches first factorials statically.
  * Hide in anonymous namespace. */
-static unsigned cached_factorials = BCMath::CacheFactorials(899);
+static unsigned __attribute__((unused)) cached_factorials = BCMath::CacheFactorials(899);
 }
 
 // ---------------------------------------------------------
@@ -192,9 +193,9 @@ double BCMath::LogBinomFactorExact(unsigned n, unsigned k)
     if (n < k)										// impose k<n requirement
         return std::numeric_limits<double>::quiet_NaN();
 
-    if ( k == 0 or k == n )
+    if ( k == 0 || k == n )
         return 0;
-    if ( k == 1 or k == n - 1)
+    if ( k == 1 || k == n - 1)
         return log((double)n);
 
     int lmax = std::max(k, n - k);
@@ -281,10 +282,10 @@ double BCMath::LogLogNormal(double x, double mean, double sigma)
 }
 
 // ---------------------------------------------------------
-double BCMath::CorrectPValue(const double& pvalue, const unsigned& npar, const unsigned& nobservations) throw (std::domain_error)
+double BCMath::CorrectPValue(const double& pvalue, const unsigned& npar, const unsigned& nobservations)
 {
     // avoid pathologies
-    if (pvalue < 0 or pvalue > 1)
+    if (pvalue < 0 || pvalue > 1)
         throw std::domain_error(Form("BCMath::CorrectPValue: pvalue (%g) out of range", pvalue));
 
     if (pvalue < std::numeric_limits<double>::epsilon())
@@ -307,7 +308,7 @@ double BCMath::CorrectPValue(const double& pvalue, const unsigned& npar, const u
 
 // ---------------------------------------------------------
 double BCMath::FastPValue(const std::vector<unsigned>& observed, const std::vector<double>& expected,
-                          unsigned nIterations, unsigned seed) throw (std::invalid_argument)
+                          unsigned nIterations, unsigned seed)
 {
     size_t nbins = observed.size();
     if (nbins != expected.size()) {

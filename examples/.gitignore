@@ -7,7 +7,9 @@
 
 # Binaries
 asymmErrorsFitterExample
+continueMCMC
 ensembletest
+readRootOutput
 runAnomCouplings
 runCombineGaussians
 runCombination

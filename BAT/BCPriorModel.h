@@ -1,18 +1,18 @@
 #ifndef __BCPRIORMODEL__H
 #define __BCPRIORMODEL__H
 
-/*!
- * \class BCPriorModel
- * \brief Class for sampling from prior of a BCModel
- * \author Daniel Greenwald
- * \version 1.0
- * \date 09.2014
- * \detail This class acts as a BCModel using the prior of another BCModel as its posterior
+/**
+ * @class BCPriorModel
+ * @brief Class for sampling from prior of a BCModel
+ * @author Daniel Greenwald
+ * @version 1.0
+ * @date 09.2014
+ * @details This class acts as a BCModel using the prior of another BCModel as its posterior
  * for the purpose of knowledge-update plotting.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -40,10 +40,6 @@ public:
      * @param model Model to be prior model of.
      * @param call_likelihood Flag to control calling of Model's likelihood. */
     BCPriorModel(BCModel& model, bool call_likelihood = false);
-
-    /**
-     * destructor. */
-    virtual ~BCPriorModel() {};
 
     /** @} */
 
@@ -76,8 +72,10 @@ public:
     { return fCallLikelihood; }
 
 protected:
+    /// The original model on which we call the prior.
     BCModel& fModel;
 
+    /// Call the likelihood of the original model when evaluating observables.
     bool fCallLikelihood;
 
     /** \name Hide BCModel functions related to BCPriorModel. */

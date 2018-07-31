@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -51,6 +51,8 @@ BCParameter::BCParameter(const std::string& name, double lowerlimit, double uppe
     fPrior(NULL)
 {
     fPrefix = "Parameter";
+    if (lowerlimit == upperlimit)
+        Fix(lowerlimit);
 }
 
 // ---------------------------------------------------------
@@ -79,8 +81,10 @@ void swap(BCParameter& A, BCParameter& B)
 void BCParameter::SetLimits(double lowerlimit, double upperlimit)
 {
     BCVariable::SetLimits(lowerlimit, upperlimit);
-    if (BCAux::RangeType(fLowerLimit, fUpperLimit) == BCAux::kFiniteRange and fPrior)
+    if (BCAux::RangeType(fLowerLimit, fUpperLimit) == BCAux::kFiniteRange && fPrior)
         fPrior->GetFunction().SetRange(fLowerLimit, fUpperLimit);
+    if (lowerlimit == upperlimit)
+        fFixedValue = lowerlimit;
 }
 
 // ---------------------------------------------------------
@@ -150,4 +154,3 @@ std::string BCParameter::OneLineSummary(bool print_prefix, int name_length) cons
         return BCVariable::OneLineSummary(print_prefix, name_length);
     return BCVariable::OneLineSummary(print_prefix, name_length) + Form(" (fixed at %.*f)", GetPrecision(), GetFixedValue());
 }
-

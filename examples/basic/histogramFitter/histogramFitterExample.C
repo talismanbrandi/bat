@@ -28,11 +28,8 @@
 // Below are the includes needed for compilation of the macro
 // the #if ... #endif directives around the includes allow to
 // run the macro in both normal and compiled mode.
-#define COMPILER (!defined(__CINT__) && !defined(__CLING__))
+#if defined(__MAKECINT__) || defined(__ROOTCLING__) || (!defined(__CINT__) && !defined(__CLING__))
 
-#if defined(__MAKECINT__) || defined(__ROOTCLING__) || COMPILER
-
-#include <BAT/BCAux.h>
 #include <BAT/BCLog.h>
 #include <BAT/BCHistogramFitter.h>
 
@@ -51,11 +48,7 @@
 void histogramFitterExample()
 {
     // open log file
-    BCLog::OpenLog("log.txt");
-    BCLog::SetLogLevel(BCLog::detail);
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
+    BCLog::OpenLog("log.txt", BCLog::detail);
 
     // -------------------------
     // Create data
@@ -63,26 +56,32 @@ void histogramFitterExample()
     TRandom3 random(1234);
 
     // create new histogram
-    TH1D hist("data", ";x;N", 100, 0.0, 100.0);
+    const unsigned nbins = 50;
+    const double xmin = 0;
+    const double xmax = 100;
+    TH1D hist("data", ";x;N", nbins, xmin, xmax);
     hist.SetStats(kFALSE);
 
-    // fill signal, 100 events distributed by Gaussian with mean = 65, sigma = 5
-    for (int i = 0; i < 100; ++i)
-        hist.Fill(random.Gaus(65, 5));
+    // fill signal, `nbins` events following a Gaussian with mean = 65, sigma = 5
+    const double mu = 65;
+    const double sigma = 5;
+    for (int i = 0; i < nbins; ++i)
+        hist.Fill(random.Gaus(mu, sigma));
 
-    // fill background, 100 events, uniformly distributed
-    for (int i = 0; i < 100; ++i)
-        hist.Fill(random.Uniform() * 100);
-    // -------------------------
+    // fill background, expect one event per bin
+    for (int i = 0; i < nbins; ++i)
+        hist.Fill(xmin + random.Uniform() * (xmax - xmin));
 
     // -------------------------
-    // Define a fit function, which is also used to generate data
-    TF1 f1("f1", "[0]/sqrt(2*pi)/[2] * exp(-0.5*((x-[1])/[2])^2) + [3]", 0., 100.);
+    // Define a fit function with 4 parameters
+    // TF1 f1("f1", MyFunctor(xmin, xmax, nbins), xmin, xmax, 4);
+    // f1.SetParNames("SignalYield", "SignalMean", "SignalSigma", "BackgroundYieldPerBin");
+    TF1 f1("f1", "[0]/sqrt(2*pi)/[2] * exp(-0.5*((x-[1])/[2])^2) + [3]*0.01", 0., 100.);
     f1.SetParNames("SignalYield", "SignalMean", "SignalSigma", "BackgroundYield");
-    f1.SetParLimits(0,  0.0, 200.0);
-    f1.SetParLimits(1, 55.0,  75.0);
-    f1.SetParLimits(2,  0.1,  10.0);
-    f1.SetParLimits(3,  0.0,   2.0);
+    f1.SetParLimits(0,  0.0, 2 * nbins);
+    f1.SetParLimits(1, mu - 10, mu + 10);
+    f1.SetParLimits(2,  0.1,  2 * sigma);
+    f1.SetParLimits(3,  0.0,   2 * nbins);
     // -------------------------
 
     // create a new histogram fitter
@@ -103,9 +102,12 @@ void histogramFitterExample()
     // perform fit
     hf.Fit();
 
-    // calculate p values
-    hf.CalculatePValueFast(hf.GetBestFitParameters());
-    cout << "p value " << hf.GetPValue() << ", corrected for degrees of freedom " << hf.GetPValueNDoF() << endl;
+    // calculate p value...
+    double p = hf.CalculatePValueFast(hf.GetBestFitParameters());
+
+    // and correct for the degrees of freedom to yield an approximately
+    // uniformly distributed p value for the true model
+    cout << "p value " << p << ", corrected for degrees of freedom " << BCMath::CorrectPValue(p, hf.GetNFreeParameters(), nbins) << endl;
 
     // print marginalized distributions
     hf.PrintAllMarginalized("distributions.pdf");
@@ -114,6 +116,4 @@ void histogramFitterExample()
     TCanvas c1("c1");
     hf.DrawFit("", true); // draw with a legend
     c1.Print("fit.pdf");
-
-    return;
 }

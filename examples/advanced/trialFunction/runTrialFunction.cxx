@@ -1,22 +1,14 @@
-#include <BAT/BCAux.h>
 #include <BAT/BCLog.h>
 
 #include "GaussModel.h"
 
 int main()
 {
-
-    // set nicer style for drawing than the ROOT default
-    BCAux::SetStyle();
-
     // open log file
     BCLog::OpenLog("log.txt", BCLog::detail, BCLog::detail);
 
     // create new GaussModel object
-    GaussModel m("gausMod");
-
-    // set marginalization method
-    m.SetMarginalizationMethod(BCIntegrate::kMargMetropolis);
+    GaussModel m("Gauss Model");
 
     // set MCMC precision
     m.SetPrecision(BCEngineMCMC::kMedium);
@@ -24,17 +16,14 @@ int main()
     // set scale factor upper limit
     m.SetScaleFactorUpperLimit(10);
 
-    // run MCMC and marginalize posterior wrt. all parameters
-    // and all combinations of two parameters
-    m.MarginalizeAll();
+    // run MCMC and marginalize posterior
+    m.MarginalizeAll(BCIntegrate::kMargMetropolis);
 
-    // if MCMC was run before (MarginalizeAll()) it is
-    // possible to use the mode found by MCMC as
-    // starting point of Minuit minimization
-    m.FindMode(m.GetBestFitParameters());
+    // Optimize, starting from best fit point found by the marginalization
+    m.FindMode();
 
-    // draw all marginalized distributions into a PostScript file
-    m.PrintAllMarginalized("GaussModel_plots.pdf");
+    // draw all marginalized distributions into a file
+    m.PrintAllMarginalized(m.GetSafeName() + "_plots.pdf");
 
     // print results of the analysis to the log
     m.PrintSummary();
@@ -43,6 +32,5 @@ int main()
     BCLog::CloseLog();
 
     return 0;
-
 }
 

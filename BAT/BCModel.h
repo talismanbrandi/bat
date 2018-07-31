@@ -1,21 +1,21 @@
 #ifndef __BCMODEL__H
 #define __BCMODEL__H
 
-/*!
- * \class BCModel
- * \brief The base class for all user-defined models.
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \author Daniel Greenwald
- * \version 1.0
- * \date 08.2008
- * \detail This class represents a model. It contains a container of prior distributions and the likelihood. The methods that implement the prior and the likelihood
+/**
+ * @class BCModel
+ * @brief The base class for all user-defined models.
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @author Daniel Greenwald
+ * @version 1.0
+ * @date 08.2008
+ * @details This class represents a model. It contains a container of prior distributions and the likelihood. The methods that implement the prior and the likelihood
  * have to be overloaded by the user in the user defined model class
  * derived from this class.
  */
 
 /*
- * Copyright (C) 2007-2015, the BAT core developer team
+ * Copyright (C) 2007-2018, the BAT core developer team
  * All rights reserved.
  *
  * For the licensing terms see doc/COPYING.
@@ -62,15 +62,12 @@ public:
     BCModel(const std::string& filename, const std::string& name, bool loadObservables = true);
 
     /**
+     * Copy-assignment operator */
+    BCModel& operator=(const BCModel&);
+
+    /**
      * Destructor. */
     virtual ~BCModel();
-
-    /** @} */
-    /** \name swap*/
-    /** @{ */
-
-    /** swap */
-    friend void swap(BCModel& A, BCModel& B);
 
     /** @} */
     /** \name Member functions (get) */
@@ -212,15 +209,15 @@ public:
     /**
      * Returns the a posteriori probability given a set of parameter values
      * @param parameters A set of parameter values
-     * @return The a posteriori probability */
-    virtual double Probability(const std::vector<double>& parameter)
-    { return exp(LogProbability(parameter)); }
+     * @return The posterior probability */
+    virtual double Probability(const std::vector<double>& parameters)
+    { return exp(LogProbability(parameters)); }
 
     /**
      * Returns natural logarithm of the  a posteriori probability given a set of parameter values
      * @param parameters A set of parameter values
-     * @return The a posteriori probability */
-    virtual double LogProbability(const std::vector<double>& parameter);
+     * @return log(posterior probability) */
+    virtual double LogProbability(const std::vector<double>& parameters);
 
     /**
      * Sampling function used for importance sampling.
@@ -240,7 +237,9 @@ public:
     { return LogProbabilityNN(parameters); }
 
     /**
-     * Initialize the trees containing the Markov chains and parameter info. */
+     * Initialize the trees containing the Markov chains and parameter info.
+     *
+     * No-op if trees already initialized and replace* = false. */
     virtual void InitializeMarkovChainTree(bool replacetree = false, bool replacefile = false);
 
     /**
@@ -288,7 +287,7 @@ public:
 protected:
 
     /**
-     * A data set */
+     * A data set. Not owned by the model. */
     BCDataSet* fDataSet;
 
     /**

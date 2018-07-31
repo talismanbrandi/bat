@@ -1,15 +1,15 @@
 #ifndef __BCVARIABLE__H
 #define __BCVARIABLE__H
 
-/*!
- * \class BCVariable
- * \brief A class representing a variable of a model.
- * \author Daniel Greenwald
- * \author Daniel Kollar
- * \author Kevin Kr&ouml;ninger
- * \version 1.0
- * \date 08.2008
- * \detail This class represents a variable of a model. It contains
+/**
+ * @class BCVariable
+ * @brief A class representing a variable of a model.
+ * @author Daniel Greenwald
+ * @author Daniel Kollar
+ * @author Kevin Kr&ouml;ninger
+ * @version 1.0
+ * @date 08.2008
+ * @details This class represents a variable of a model. It contains
  * information about the name and the range of the variable.
  */
 
@@ -261,7 +261,25 @@ public:
     virtual std::string OneLineSummary(bool print_prefix = true, int name_length = -1) const;
 
     /**
+     * @return title appropriate for TH1 */
+    virtual std::string H1Title() const;
+
+    /**
+     * @return title appropriate for TH2
+     * @param ordinate The variable to be used for the ordinate. */
+    virtual std::string H2Title(const BCVariable& ordinate) const;
+
+    /**
+     * @return title appropriate for TH3
+     * @param ordinate_y The variable to be used for the y ordinate.
+     * @param ordinate_z The variable to be used for the z ordinate. */
+    virtual std::string H3Title(const BCVariable& ordinate_y, const BCVariable& ordinate_z) const;
+
+    /**
      * Creates a 1D Histogram for this variable.
+     *
+     * @note The caller is responsible for deletion of the returned object.
+     *
      * @param name Name of the histogram.
      * @return pointer to histogram object. */
     virtual TH1* CreateH1(const std::string& name) const;
@@ -269,6 +287,9 @@ public:
     /**
      * Creates a 2D Histogram for this variable as the abcissa
      * and a second as the ordinate.
+     *
+     * @note The caller is responsible for deletion of the returned object.
+     *
      * @name name The name of the histogram.
      * @param ordinate The variable to be used for the ordinate. */
     virtual TH2* CreateH2(const std::string& name, const BCVariable& ordinate) const;
@@ -276,6 +297,9 @@ public:
     /**
      * Creates a 3D Histogram for this variable as the abcissa
      * and a second as the ordinate.
+     *
+     * @note The caller is responsible for deletion of the returned object.
+     *
      * @name name The name of the histogram.
      * @param ordinate_y The variable to be used for the y ordinate.
      * @param ordinate_z The variable to be used for the z ordinate. */
