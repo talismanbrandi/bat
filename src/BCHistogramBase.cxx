@@ -201,7 +201,7 @@ void BCHistogramBase::SetHistogram(const TH1* const hist)
         return;
     }
 
-    fHistogram = BCAux::OwnClone(hist, Form("%s_bch", hist->GetName()));
+    fHistogram = BCAux::OwnClone(hist, Form("%s", hist->GetName()));
     fHistogram->SetStats(false);
     fHistogram->SetDirectory(0);
     fDimension = fHistogram->GetDimension();
