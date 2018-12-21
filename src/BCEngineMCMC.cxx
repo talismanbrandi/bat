@@ -1600,13 +1600,13 @@ bool BCEngineMCMC::AcceptOrRejectPoint(unsigned chain, unsigned parameter)
     fMCMCStatistics[chain].efficiency[parameter] *= 1.*fMCMCStatistics[chain].n_samples_efficiency / (fMCMCStatistics[chain].n_samples_efficiency + 1.);
 
     // if log(likelihood) of proposed point was not a finite number
-    if (!std::isfinite(p1)) {
+/*    if (!std::isfinite(p1)) {
         if (fMCMCProposeMultivariate) {
             BCLog::OutDebug(Form("log(probability) evaluated to nan or inf in chain %i while at ", chain));
             PrintParameters(fMCMCThreadLocalStorage[chain].parameters, BCLog::OutDebug);
         } else
             BCLog::OutDebug(Form("log(probability) evaluated to nan or inf in chain %i while varying parameter %s to %.3e", chain, GetParameter(parameter).GetName().data(), fMCMCThreadLocalStorage[chain].parameters[parameter]));
-    }
+    } HEPfit NOTE: Output suppressed since it is printed too often for flat weights. */
 
     // execute user code and return
     MCMCCurrentPointInterface(fMCMCThreadLocalStorage[chain].parameters, chain, false);
@@ -1767,7 +1767,7 @@ bool BCEngineMCMC::MetropolisPreRun()
     // initialize Markov chain
     MCMCInitialize();
 
-    if (fMCMCFlagWritePreRunToFile)
+    if (!fMCMCOutputFile && fMCMCFlagWritePreRunToFile) // HEPfit Note: Modification required to access Root tree from HEPfit consistently.
         InitializeMarkovChainTree();
 
     // perform run
@@ -2201,7 +2201,7 @@ bool BCEngineMCMC::Metropolis()
         for (unsigned c = 0; c < fMCMCStates.size(); ++c)
             fMCMCStates[c].iteration = 0;
     }
-    if (fMCMCFlagWriteChainToFile)
+    if (!fMCMCOutputFile && fMCMCFlagWriteChainToFile) // HEPfit Note: Modification required to access Root tree from HEPfit consistently.
         InitializeMarkovChainTree(false, false);
 
     // check that correct objects of correct size have been created
