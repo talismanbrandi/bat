@@ -143,7 +143,8 @@ void BCH2D::DrawBands(const std::string& options)
 
     // set contour levels
     GetHistogram()->SetContour(levels.size(), &levels[0]);
-
+    
+    /* Begin MPI MOD */
     // if (fBandFillStyle <= 0) {
     //     GetHistogram()->SetLineColor(GetLineColor());
     //     GetHistogram()->Draw(Form("%scont%d", options.data(), static_cast<int>(std::abs(fBandFillStyle))));
@@ -173,6 +174,8 @@ void BCH2D::DrawBands(const std::string& options)
         GetHistogram()->SetFillStyle(1001);
         GetHistogram()->Draw((options + "cont0").data());
     }
+    /* End MPI MOD */
+    
     gPad->Update();
 
     // Set legend entries
