@@ -1598,7 +1598,7 @@ bool BCEngineMCMC::AcceptOrRejectPoint(unsigned parameter)
 {
     bool return_value = true;
     unsigned mychain = 0;
-    int iproc = 0;
+    unsigned int iproc = 0;
     unsigned npars = fParameters.Size();
     int buffsize = npars + 1;
     double p0[procnum];
